@@ -118,7 +118,7 @@ PAGES = {
                                     "fertilisers (urea) — derived from crude/gas; final inputs "
                                     "to manufacturing and agriculture sectors."
                                 ),
-                                "nodes": ["olefins_aromatics", "fertilisers"],
+                                "nodes": ["olefins_ethylene", "olefins_polymers", "fertilisers"],
                             },
                         ],
                     },
@@ -192,12 +192,12 @@ PAGES = {
                                             "motorist_diesel",
                                         ],
                                     },
+                                    "gas_electricity",       # Electricity tariff (moved up — sits naturally with the other consumer-facing energy prices)
                                     "sg_cpi",                # CPI YoY/MoM + MAS core
                                     "sg_supply_prices",      # Domestic supply price indices (oil/non-oil)
                                     "sg_import_prices",      # IPI oil/non-oil/food
                                     "sg_export_prices",      # EPI oil/non-oil
                                     "sg_producer_prices",    # MPPI oil/non-oil
-                                    "gas_electricity",       # Electricity tariff
                                 ],
                             },
                         ],
@@ -317,12 +317,19 @@ PAGES = {
                         "label": "Prices",
                         "subsections": [
                             {
-                                "type": "placeholder",
-                                "title": "Prices",
-                                "planned_content": [
-                                    "Regional CPI prints (ASEAN-6 + India, Japan, Korea, Taiwan)",
-                                    "Retail fuel prices by country",
-                                    "Regional electricity / gas tariffs",
+                                "type": "chart_grid",
+                                "title": "Regional consumer prices",
+                                "description": (
+                                    "Year-on-year inflation across 10 Asian economies "
+                                    "(China, India, Indonesia, Japan, Malaysia, Philippines, "
+                                    "South Korea, Taiwan, Thailand, Vietnam). Headline CPI "
+                                    "captures the broadest pass-through of the Iran/Hormuz "
+                                    "energy shock; core CPI strips out food and energy to "
+                                    "show second-round effects."
+                                ),
+                                "nodes": [
+                                    "regional_cpi_headline",
+                                    "regional_cpi_core",
                                 ],
                             },
                         ],
@@ -332,12 +339,27 @@ PAGES = {
                         "label": "Sectoral activity",
                         "subsections": [
                             {
-                                "type": "placeholder",
-                                "title": "Sectoral economic activity",
-                                "planned_content": [
-                                    "Regional industrial production indices",
-                                    "Manufacturing PMIs",
-                                    "Country-level activity proxies",
+                                "type": "chart_grid",
+                                "title": "Regional industrial production",
+                                "description": (
+                                    "Industrial / manufacturing production indices for 10 "
+                                    "Asian economies — real-side activity gauges that reveal "
+                                    "where higher energy and input costs are biting into "
+                                    "manufacturing output. Each country's index uses its own "
+                                    "national base year; the level differences across panels "
+                                    "are not directly comparable."
+                                ),
+                                "nodes": [
+                                    {"label": "China",       "description": "China industrial production index (NBS) — output across mining, manufacturing, and utilities.",       "series": ["regional_ipi_cn"]},
+                                    {"label": "India",       "description": "India index of industrial production (MoSPI) — output across mining, manufacturing, and electricity.", "series": ["regional_ipi_in"]},
+                                    {"label": "Indonesia",   "description": "Indonesia large & medium manufacturing production index (BPS).",                                       "series": ["regional_ipi_id"]},
+                                    {"label": "Japan",       "description": "Japan mining & manufacturing production index (METI).",                                                "series": ["regional_ipi_jp"]},
+                                    {"label": "Malaysia",    "description": "Malaysia industrial production index (DOSM) — mining, manufacturing, and electricity.",               "series": ["regional_ipi_my"]},
+                                    {"label": "Philippines", "description": "Philippines volume of production index for manufacturing (PSA).",                                      "series": ["regional_ipi_ph"]},
+                                    {"label": "South Korea", "description": "South Korea all-industry production index (KOSTAT) — broad activity gauge.",                            "series": ["regional_ipi_kr"]},
+                                    {"label": "Taiwan",      "description": "Taiwan industrial production index (MOEA) — mining, manufacturing, and utilities.",                    "series": ["regional_ipi_tw"]},
+                                    {"label": "Thailand",    "description": "Thailand value-added manufacturing production index (OIE).",                                            "series": ["regional_ipi_th"]},
+                                    {"label": "Vietnam",     "description": "Vietnam industrial production index (GSO) — mining, manufacturing, electricity, and water.",          "series": ["regional_ipi_vn"]},
                                 ],
                             },
                         ],

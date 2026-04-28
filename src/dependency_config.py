@@ -178,6 +178,34 @@ DEPENDENCY_NODES = {
         ],
         sheet_keywords=["olefin", "aromatic", "ethylene", "propylene"],
     ),
+
+    # Presentation-only sub-nodes — split olefins_aromatics into two cleaner
+    # charts (ethylene cracker outputs vs downstream polymers) for the Global
+    # Shocks page. The combined olefins_aromatics node above is kept intact
+    # because naphtha/LPG reference it in the transmission-graph children list.
+    "olefins_ethylene": node(
+        label="Ethylene",
+        description="Regional ethylene spot prices — the primary cracker output and feedstock for downstream polymers.",
+        google_sheet_series=[
+            "NE Asia Ethylene (Olefins) CFR Spot Price Weekly",
+            "SE Asia Ethylene (Olefins) CFR Spot Price Weekly",
+            "NWE Ethylene CIF Price USD/MT Weekly",
+            "US Gulf Ethylene (Olefins) FD Spot Price Weekly",
+        ],
+        sheet_keywords=["ethylene"],
+    ),
+    "olefins_polymers": node(
+        label="Polymers",
+        description="Polyethylene (HDPE/LLDPE) and PET resin prices in China and Southeast Asia — packaging, pipe, bottle, and fibre inputs.",
+        google_sheet_series=[
+            "China Chemicals SunSirs HDPE High Density Polyethylene",
+            "China Chemicals SunSirs LLDPE Linear Low-Density Polyethylene",
+            "China Chemicals SunSirs PET Polyethylene Terephthalate",
+            "SE Asia Film-Grade Polyethylene (HDPE Polymers) CFR Spot Price Weekly",
+            "SE Asia Film-Grade Polyethylene (LLDPE Polymers) CFR Spot Price Weekly",
+        ],
+        sheet_keywords=["polyethylene", "polymer", "pet"],
+    ),
     "fertilisers": node(
         label="Fertilisers",
         description="Urea and ammonia prices — gas-derived via Haber-Bosch process; cost driver for agriculture and food.",
@@ -334,37 +362,95 @@ DEPENDENCY_NODES = {
     "sg_cpi": node(
         label="Headline Inflation",
         description="CPI and MAS Core Inflation — the broadest measure of how energy cost shocks reach households.",
-        series_ids=["ceic_cpi_yoy", "ceic_cpi_mom", "ceic_mas_core_inflation"],
+        series_ids=["ceic_cpi_yoy", "ceic_cpi_mom", "ceic_mas_core_inflation", "mas_core_inflation_mom"],
         google_sheet_series=[],
         sheet_keywords=["cpi", "inflation"],
     ),
     "sg_supply_prices": node(
         label="Domestic Supply Prices",
-        description="Domestic supply price indices — measure cost pressures on goods supplied within Singapore, split by oil and non-oil.",
+        description="DSPI = Domestic Supply Price Index. Prices of goods supplied to the SG market (local + imports). Upstream of CPI.",
         series_ids=["ceic_dspi_oil", "ceic_dspi_non_oil"],
         google_sheet_series=[],
         sheet_keywords=["supply price", "dspi"],
     ),
     "sg_producer_prices": node(
         label="Producer Prices",
-        description="Manufactured goods producer price indices — measure factory-gate cost pressures, split by oil and non-oil.",
+        description="MPPI = Manufactured Producers' Price Index. Factory-gate prices for SG-manufactured goods — excludes imports.",
         series_ids=["ceic_mppi_oil", "ceic_mppi_non_oil"],
         google_sheet_series=[],
         sheet_keywords=["producer price", "mppi"],
     ),
     "sg_import_prices": node(
         label="Import Prices",
-        description="Import price indices — measure cost of imports into Singapore, split by oil, non-oil, and food.",
+        description="IPI = Import Price Index (not the IIP for Industrial Production). Prices of imports landing in SG — external cost-pressure channel.",
         series_ids=["ceic_ipi_oil", "ceic_ipi_non_oil", "ceic_ipi_food"],
         google_sheet_series=[],
         sheet_keywords=["import price"],
     ),
     "sg_export_prices": node(
         label="Export Prices",
-        description="Export price indices — measure price competitiveness of Singapore's exports, split by oil and non-oil.",
+        description="EPI = Export Price Index. Prices SG exporters charge overseas buyers — export-margin and competitiveness signal.",
         series_ids=["ceic_epi_oil", "ceic_epi_non_oil"],
         google_sheet_series=[],
         sheet_keywords=["export price"],
+    ),
+
+    # ==================================================================
+    # REGIONAL — Asia ex-Singapore CPI and Industrial Production
+    # ==================================================================
+    "regional_cpi_headline": node(
+        label="Regional Headline CPI",
+        description="Year-on-year headline CPI inflation across 10 Asian economies — broadest pass-through gauge for Iran/Hormuz energy shocks.",
+        series_ids=[
+            "regional_cpi_headline_cn",
+            "regional_cpi_headline_in",
+            "regional_cpi_headline_id",
+            "regional_cpi_headline_jp",
+            "regional_cpi_headline_my",
+            "regional_cpi_headline_ph",
+            "regional_cpi_headline_kr",
+            "regional_cpi_headline_tw",
+            "regional_cpi_headline_th",
+            "regional_cpi_headline_vn",
+        ],
+        google_sheet_series=[],
+        sheet_keywords=["cpi", "inflation"],
+    ),
+    "regional_cpi_core": node(
+        label="Regional Core CPI",
+        description="Year-on-year core CPI inflation (excluding food and energy) across the same 10 economies — strips out the direct shock to isolate second-round pass-through.",
+        series_ids=[
+            "regional_cpi_core_cn",
+            "regional_cpi_core_in",
+            "regional_cpi_core_id",
+            "regional_cpi_core_jp",
+            "regional_cpi_core_my",
+            "regional_cpi_core_ph",
+            "regional_cpi_core_kr",
+            "regional_cpi_core_tw",
+            "regional_cpi_core_th",
+            "regional_cpi_core_vn",
+        ],
+        google_sheet_series=[],
+        sheet_keywords=["core inflation"],
+    ),
+    "regional_ipi": node(
+        label="Regional Industrial Production",
+        description="Industrial production indices for 10 Asian economies — real-side activity gauge that captures hits to manufacturing from energy and input cost shocks.",
+        series_ids=[
+            "regional_ipi_cn",
+            "regional_ipi_in",
+            "regional_ipi_id",
+            "regional_ipi_jp",
+            "regional_ipi_my",
+            "regional_ipi_ph",
+            "regional_ipi_kr",
+            "regional_ipi_tw",
+            "regional_ipi_th",
+            "regional_ipi_vn",
+        ],
+        google_sheet_series=[],
+        sheet_keywords=["industrial production", "ipi"],
     ),
 }
 

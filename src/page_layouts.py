@@ -215,7 +215,18 @@ PAGES = {
                                     "wholesale (bunkering and ex-bunkering), construction, real estate, and F&B."
                                 ),
                                 "nodes": [
-                                    "petroleum",
+                                    # Petroleum refining — split production vs trade so the trade
+                                    # chart gets a meaningful title (was "— SGD Thousand").
+                                    {
+                                        "label": "Petroleum refining",
+                                        "description": "Refinery output — directly affected by crude oil costs and margins.",
+                                        "series": ["ipi_petroleum"],
+                                    },
+                                    {
+                                        "label": "Petroleum refining - imports and exports",
+                                        "description": "Singapore's monthly petroleum trade values (SingStat).",
+                                        "series": ["singstat_imports_petroleum", "singstat_exports_petroleum"],
+                                    },
                                     "petrochemicals",
                                     "basic_chemicals",
                                     "wholesale_bunkering",
@@ -377,7 +388,15 @@ PAGES = {
                                 "series_groups": [
                                     ("FX (per USD)", ["IDR", "MYR", "PHP", "THB", "VND"]),
                                     ("10-Year Sovereign Yields (%)", ["US_10Y", "ID_10Y", "MY_10Y", "PH_10Y", "TH_10Y"]),
-                                    ("Commodities", ["BRENT", "JKM_LNG", "COAL_NEWC", "CPO", "RUBBER_TSR20", "NICKEL", "GOLD"]),
+                                    # Each commodity gets its own chart — they're in different units
+                                    # and conceptually unrelated (oil vs LNG vs coal vs metals etc.).
+                                    ("Brent crude oil", ["BRENT"]),
+                                    ("JKM LNG", ["JKM_LNG"]),
+                                    ("Newcastle coal", ["COAL_NEWC"]),
+                                    ("Crude palm oil", ["CPO"]),
+                                    ("Rubber TSR20", ["RUBBER_TSR20"]),
+                                    ("Nickel", ["NICKEL"]),
+                                    ("Gold", ["GOLD"]),
                                 ],
                             },
                         ],

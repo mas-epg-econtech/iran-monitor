@@ -592,132 +592,27 @@ def fetch_singstat_merchandise() -> dict[str, pd.DataFrame]:
 
 
 # ---------------------------------------------------------------------------
-# data.gov.sg — Index of Industrial Production (IPI)
+# data.gov.sg ingestion (currently unused)
 # ---------------------------------------------------------------------------
-
-DATAGOV_IPI_DATASET_ID = "d_ec1764482872e3a178f184464badd99e"
-DATAGOV_INITIATE_URL = (
-    f"https://api-open.data.gov.sg/v1/public/api/datasets/{DATAGOV_IPI_DATASET_ID}/initiate-download"
-)
-
-
-def fetch_datagov_ipi() -> dict[str, pd.DataFrame]:
-    """Download IPI CSV from data.gov.sg and extract target sub-indices.
-
-    The CSV has a wide layout: first column is 'DataSeries', remaining columns
-    are month names like '2025Dec', '2025Nov', etc.  We pivot the target rows
-    into long-format DataFrames matching the dashboard schema.
-    """
-    import requests
-    import csv
-    import io
-    import time
-
-    targets = {
-        sid: sdef for sid, sdef in SERIES_REGISTRY.items()
-        if sdef.get("source") == "datagov_ipi"
-    }
-    if not targets:
-        return {}
-
-    # Build a lookup: DataSeries name -> series definition(s)
-    name_lookup: dict[str, list[tuple[str, dict]]] = {}
-    for sid, sdef in targets.items():
-        key = sdef["source_key"].strip()
-        name_lookup.setdefault(key, []).append((sid, sdef))
-
-    print(f"  IPI targets: {list(name_lookup.keys())}")
-
-    # Initiate download (with retries for rate limiting)
-    csv_text = None
-    for attempt in range(4):
-        try:
-            resp = requests.get(DATAGOV_INITIATE_URL, timeout=20)
-            if resp.status_code == 429:
-                wait = 12 * (attempt + 1)
-                print(f"    Rate limited, waiting {wait}s...")
-                time.sleep(wait)
-                continue
-            if resp.status_code in (200, 201):
-                data = resp.json()
-                dl_url = data.get("data", {}).get("url", "")
-                if dl_url:
-                    dl_resp = requests.get(dl_url, timeout=60)
-                    if dl_resp.status_code == 200:
-                        csv_text = dl_resp.text
-                        break
-                    else:
-                        print(f"    Download failed: HTTP {dl_resp.status_code}")
-            else:
-                print(f"    Initiate failed: HTTP {resp.status_code}")
-        except Exception as exc:
-            print(f"    Attempt {attempt+1} error: {exc}")
-        time.sleep(5)
-
-    if not csv_text:
-        print("    FAIL: could not download IPI CSV from data.gov.sg")
-        return {}
-
-    # Parse CSV
-    reader = csv.reader(io.StringIO(csv_text))
-    header = next(reader)  # ['DataSeries', '2025Dec', '2025Nov', ...]
-
-    # Parse column dates from header (skip first column)
-    col_dates: list[pd.Timestamp | None] = [None]  # placeholder for DataSeries col
-    for col_name in header[1:]:
-        # Format: "2025Dec", "2024Jan", etc.
-        dt = pd.to_datetime(col_name, format="%Y%b", errors="coerce")
-        col_dates.append(dt)
-
-    today = datetime.now(timezone.utc).date()
-    earliest_year = today.year - SINGSTAT_YEARS_BACK
-
-    frames: dict[str, pd.DataFrame] = {}
-
-    for row in reader:
-        if not row:
-            continue
-        series_name = row[0].strip()
-        if series_name not in name_lookup:
-            continue
-
-        # Extract time-series data from the wide row
-        rows_data = []
-        for i in range(1, len(row)):
-            if i >= len(col_dates) or col_dates[i] is None:
-                continue
-            dt = col_dates[i]
-            if dt.year < earliest_year:
-                continue
-            raw = row[i].strip() if i < len(row) else ""
-            if not raw or raw == "na":
-                continue
-            try:
-                value = float(raw.replace(",", ""))
-            except (TypeError, ValueError):
-                continue
-            rows_data.append({"date": dt, "value": value})
-
-        if not rows_data:
-            continue
-
-        for sid, sdef in name_lookup[series_name]:
-            df = pd.DataFrame(rows_data).sort_values("date").reset_index(drop=True)
-            df["series_id"] = sid
-            df["series_name"] = sdef.get("label", sid)
-            df["source"] = "datagov_ipi"
-            df["unit"] = sdef.get("unit", "")
-            df["frequency"] = sdef.get("frequency", "Monthly")
-            frames[sid] = df
-            print(f"    OK     {sid:28s}  {len(df)} pts  ({df['date'].min().date()} -> {df['date'].max().date()})")
-
-    # Report any targets we didn't find
-    for key, entries in name_lookup.items():
-        for sid, _ in entries:
-            if sid not in frames:
-                print(f"    MISS   {sid}: '{key}' not found in IPI CSV")
-
-    return frames
+# We previously pulled the 4 IIP cluster series (petroleum, petrochemicals,
+# chemicals_cluster, semiconductors) from data.gov.sg dataset
+# d_ec1764482872e3a178f184464badd99e (a mirror of SingStat M355301, 2019=100
+# base). SingStat rebased the IIP to 2025=100 and froze M355301 at Dec 2025,
+# so we switched to fetching M355381 directly via the SingStat ingestor.
+#
+# If a future series ever needs to come from data.gov.sg, the ingestion
+# pattern is two-step:
+#   1. POST/GET https://api-open.data.gov.sg/v1/public/api/datasets/<id>/initiate-download
+#      → returns { "data": { "url": "<presigned download URL>" } }
+#      (with rate limiting via HTTP 429; back off and retry)
+#   2. GET that URL → returns the CSV/XLSX file bytes.
+# The dataset payload is whatever shape the dataset author published; for
+# the wide-format IPI CSV we used to parse, the first column was 'DataSeries'
+# and the remaining columns were 'YYYYMon' month labels.
+#
+# A general-purpose helper would take (dataset_id, target_series_keys) and
+# return long-format frames; this dataset-specific implementation has been
+# removed.
 
 
 # ---------------------------------------------------------------------------
@@ -913,15 +808,10 @@ def main():
     print(f"  -> {len(singstat_frames)} series, {singstat_total} total rows written")
 
     # 5. data.gov.sg — Industrial Production Index sub-indices
-    print(f"\n[5/6] Fetching IPI from data.gov.sg...")
-    ipi_frames = fetch_datagov_ipi()
-    ipi_total = 0
-    for series_id, df in ipi_frames.items():
-        count = replace_series(series_id, df, conn)
-        ipi_total += count
-    conn.commit()
+    # NB: step 5 was previously a data.gov.sg IPI fetch. The IIP series now
+    # flow through the SingStat ingestor in step 4 (M355381). The freshness
+    # metadata key is kept in case downstream consumers reference it.
     upsert_metadata("ipi_last_updated", timestamp)
-    print(f"  -> {len(ipi_frames)} series, {ipi_total} total rows written")
 
     # 6. Motorist fuel prices
     print(f"\n[6/6] Fetching Motorist.sg fuel prices...")

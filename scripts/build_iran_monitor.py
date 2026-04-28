@@ -29,6 +29,7 @@ from src.dependency_config import DEPENDENCY_NODES
 from src.page_layouts import PAGES, PAGE_NAV, LANDING_CARDS
 from src.flag_svgs import get_flag
 from src.illustrations import get_hero
+from src.series_descriptions import lookup as series_lookup
 
 
 # ---------------------------------------------------------------------------
@@ -217,7 +218,8 @@ def build_chart_config(title: str, series_list: list[dict]) -> dict:
     for i, s in enumerate(series_list):
         color = COLOR_PALETTE[i % len(COLOR_PALETTE)]
         data_points = [{"x": d, "y": v} for d, v in s["data"]]
-        label = s["name"]
+        # Prefer the friendly name in the legend so long Bloomberg labels don't crowd the chart.
+        label = s.get("friendly_name") or s["name"]
         if s.get("unit"):
             label = f"{label} ({s['unit']})"
         datasets.append({
@@ -367,7 +369,18 @@ def render_chart_grid(section: dict, conn, chart_state: dict, data_sources_state
     cards = []
 
     def _emit(label: str, description: str, series_ids: list[str], base_prefix: str):
-        """Resolve series_ids, split by unit if needed, and emit one or more chart cards."""
+        """Resolve series_ids, split by unit if needed, and emit one or more chart cards.
+
+        Title/description selection rules per emitted chart:
+          - If the chart has exactly one series AND that series has a friendly
+            name in series_descriptions, use "{label} — {friendly_name}" as the
+            title and the series-specific description (overrides the node's
+            generic description). This is the case the user asked for —
+            "Jet Fuel — NWE FOB Barges" instead of "Jet Fuel — USD/metric tonne".
+          - Otherwise, fall back to the unit suffix ("Crude Oil — USD/Barrel")
+            for the multi-unit-split case, or just the node label for single-unit
+            groups.
+        """
         series_list = _resolve_series_list(conn, series_ids)
         if not series_list:
             cards.append(_render_chart_card_for_series(
@@ -375,17 +388,34 @@ def render_chart_grid(section: dict, conn, chart_state: dict, data_sources_state
                 chart_state, base_prefix, data_sources_state, tab_slug))
             return
         for unit, sublist in _split_by_unit(series_list):
-            if unit is None:
-                # Single-unit group, no split
-                cards.append(_render_chart_card_for_series(
-                    label, description, sublist,
-                    chart_state, base_prefix, data_sources_state, tab_slug))
+            # Decide title + description + prefix based on group composition
+            single_friendly = (
+                len(sublist) == 1 and sublist[0].get("friendly_name") and sublist[0].get("friendly_desc")
+            )
+            if single_friendly:
+                fname = sublist[0]["friendly_name"]
+                # If the section label already contains the friendly name (or vice versa),
+                # don't double up — e.g., "Brent crude oil — Brent (ICE)" is awkward.
+                _fname_l = fname.lower()
+                _label_l = label.lower()
+                if _fname_l == _label_l or _fname_l in _label_l or _label_l in _fname_l:
+                    chart_title = label
+                else:
+                    chart_title = f"{label} — {fname}"
+                chart_desc = sublist[0]["friendly_desc"]
+                chart_prefix = f"{base_prefix}_{_unit_slug(fname)}"
+            elif unit is None:
+                # Single-unit group, no split, no friendly override
+                chart_title = label
+                chart_desc = description
+                chart_prefix = base_prefix
             else:
-                chart_title = f"{label} — {unit}" if unit else label
+                chart_title = f"{label} — {unit}"
+                chart_desc = description
                 chart_prefix = f"{base_prefix}_{_unit_slug(unit)}"
-                cards.append(_render_chart_card_for_series(
-                    chart_title, description, sublist,
-                    chart_state, chart_prefix, data_sources_state, tab_slug))
+            cards.append(_render_chart_card_for_series(
+                chart_title, chart_desc, sublist,
+                chart_state, chart_prefix, data_sources_state, tab_slug))
 
     # Mode 1: ordered `nodes` list (mix of node refs and custom groups)
     for item in section.get("nodes", []):
@@ -419,7 +449,9 @@ def render_chart_grid(section: dict, conn, chart_state: dict, data_sources_state
 
 def _resolve_series_list(conn, series_ids: list[str]) -> list[dict]:
     """Resolve series_ids to a list of dicts containing {series_id, name, unit,
-    frequency, source, data} — one entry per series with at least one data point."""
+    frequency, source, data, friendly_name, friendly_desc} — one entry per
+    series with at least one data point. friendly_name/desc come from
+    src/series_descriptions.py if mapped, otherwise None."""
     series_list = []
     for sid in series_ids:
         data = fetch_series_data(conn, sid)
@@ -431,6 +463,11 @@ def _resolve_series_list(conn, series_ids: list[str]) -> list[dict]:
             nice_name = sid
         if len(nice_name) > 60:
             nice_name = nice_name[:57] + "..."
+        # Try series_id first (most stable for short IDs like motorist_92 whose
+        # series_name rotates with the scraped sample), then fall back to
+        # series_name (handles long Bloomberg labels whose series_id is
+        # truncated at 64 chars in the DB).
+        info = series_lookup(sid, meta["name"])
         series_list.append({
             "series_id": sid,
             "name": nice_name,
@@ -438,6 +475,8 @@ def _resolve_series_list(conn, series_ids: list[str]) -> list[dict]:
             "frequency": meta["frequency"],
             "source": meta["source"],
             "data": data,
+            "friendly_name": info["name"] if info else None,
+            "friendly_desc": info["desc"] if info else None,
         })
     return series_list
 

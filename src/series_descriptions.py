@@ -508,3 +508,43 @@ def lookup(series_id: str, series_name: str = "") -> dict | None:
     if series_name:
         return SERIES_DESCRIPTIONS.get(series_name)
     return None
+
+
+# ════════════════════════════════════════════════════════════════════
+# Editorial titles for multi-series unit-split charts
+# ════════════════════════════════════════════════════════════════════
+# When auto-split-by-unit produces a multi-series chart, the renderer's
+# default fallback title is "{node_label} — {unit}" (e.g.
+# "LPG — USD/gallon"). That's ugly and uninformative. Map (node_id, unit)
+# to an editorial title here to override the unit string with something
+# descriptive that explains what the chart is actually showing.
+#
+# Single-series-after-split charts already use the series's friendly name
+# from SERIES_DESCRIPTIONS — they don't need entries here.
+
+NODE_UNIT_TITLES: dict[str, dict[str, str]] = {
+    "diesel_petrol": {
+        "USD/barrel": "Singapore gasoline",
+    },
+    "naphtha": {
+        "USD/metric tonne": "Japan & NWE delivered",
+    },
+    "lpg": {
+        "USD/gallon": "US (Mont Belvieu spot)",
+        "USD/metric tonne": "Arab Gulf contract",
+    },
+    "sg_cpi": {
+        "% YoY": "Annual",
+    },
+    "construction": {
+        "SGD/Ton": "Material prices",
+        "Ton th": "Material demand",
+    },
+}
+
+
+def lookup_unit_title(node_id: str, unit: str) -> str | None:
+    """Editorial title to use in place of '{unit}' for multi-series unit-split
+    charts. Returns None if no override is defined; renderer falls back to the
+    bare unit string."""
+    return NODE_UNIT_TITLES.get(node_id, {}).get(unit)

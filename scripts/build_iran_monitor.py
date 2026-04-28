@@ -29,7 +29,7 @@ from src.dependency_config import DEPENDENCY_NODES
 from src.page_layouts import PAGES, PAGE_NAV, LANDING_CARDS
 from src.flag_svgs import get_flag
 from src.illustrations import get_hero
-from src.series_descriptions import lookup as series_lookup
+from src.series_descriptions import lookup as series_lookup, lookup_unit_title
 
 
 # ---------------------------------------------------------------------------
@@ -247,7 +247,26 @@ def build_chart_config(title: str, series_list: list[dict]) -> dict:
         "grid": {"color": "rgba(224, 230, 239, 0.06)"},
     }
     if has_war_data:
-        x_scale["min"] = WAR_ZOOM_START
+        # Default war zoom = WAR_ZOOM_START. But for low-frequency series
+        # (monthly/quarterly) the war window can have only 1-2 distinct dates
+        # which makes the chart look empty even with multiple series stacked
+        # on those same timestamps. Count DISTINCT timestamps (not total
+        # points) so a 4-series-monthly chart isn't fooled into thinking it
+        # has plenty of points when really it has 3 dates × 4 lines = 12
+        # points but visually still 3 columns of dots. Mirrors the JS
+        # applyDateRange heuristic.
+        MIN_WAR_POINTS = 8
+        distinct_in_window = {
+            pt[0] for s in series_list for pt in s["data"]
+            if pt[0] >= WAR_ZOOM_START
+        }
+        if len(distinct_in_window) >= MIN_WAR_POINTS:
+            x_scale["min"] = WAR_ZOOM_START
+        else:
+            all_distinct = sorted({pt[0] for s in series_list for pt in s["data"]})
+            if all_distinct:
+                idx = max(0, len(all_distinct) - MIN_WAR_POINTS)
+                x_scale["min"] = all_distinct[idx]
 
     return {
         "type": "line",
@@ -410,7 +429,11 @@ def render_chart_grid(section: dict, conn, chart_state: dict, data_sources_state
                 chart_desc = description
                 chart_prefix = base_prefix
             else:
-                chart_title = f"{label} — {unit}"
+                # Multi-unit split — use editorial override if defined for this
+                # (node, unit), otherwise fall back to the bare unit string.
+                unit_override = lookup_unit_title(base_prefix, unit)
+                title_suffix = unit_override if unit_override else unit
+                chart_title = f"{label} — {title_suffix}"
                 chart_desc = description
                 chart_prefix = f"{base_prefix}_{_unit_slug(unit)}"
             cards.append(_render_chart_card_for_series(
@@ -1472,6 +1495,28 @@ BASE_TEMPLATE = '''<!DOCTYPE html>
         }} else if (range === "war") {{
           if (latestDate && latestDate >= WAR_START) {{
             xMin = WAR_ZOOM_START; xMax = now;
+
+            // For low-frequency series (monthly, quarterly), the default war
+            // window can have only 1-2 distinct timestamps. Count DISTINCT
+            // timestamps (not total points) so a 4-series-monthly chart
+            // isn't fooled by 3 dates × 4 lines = 12 "points". If too few
+            // distinct dates in the window, walk start back through the data.
+            const MIN_WAR_POINTS = 8;
+            const inWindow = new Set();
+            const allDates = new Set();
+            chart.data.datasets.forEach(ds => {{
+              ds.data.forEach(pt => {{
+                const x = typeof pt === "object" ? pt.x : null;
+                if (!x) return;
+                allDates.add(x);
+                if (x >= WAR_ZOOM_START) inWindow.add(x);
+              }});
+            }});
+            if (inWindow.size < MIN_WAR_POINTS && allDates.size > 0) {{
+              const sorted = Array.from(allDates).sort();
+              const idx = Math.max(0, sorted.length - MIN_WAR_POINTS);
+              xMin = sorted[idx];
+            }}
           }} else {{
             // No war-period coverage — show all time + add stale label
             xMin = null; xMax = null;

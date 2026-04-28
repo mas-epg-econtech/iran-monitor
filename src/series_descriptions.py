@@ -219,20 +219,22 @@ SERIES_DESCRIPTIONS: dict[str, dict[str, str]] = {
     },
 
     # ── SG headline inflation ────────────────────────────────────────────
+    # Friendly names omit the YoY/MoM suffix because the charts are split by
+    # unit, so the Y-axis already shows whether it's annual or monthly.
     "CPI All Items YoY": {
-        "name": "Headline CPI YoY",
+        "name": "Headline CPI",
         "desc": "Year-on-year change in the Singapore Consumer Price Index — the broadest measure of consumer inflation.",
     },
     "CPI All Items MoM": {
-        "name": "CPI MoM",
+        "name": "Headline CPI",
         "desc": "Month-on-month change in the Singapore Consumer Price Index.",
     },
     "MAS Core Inflation YoY": {
-        "name": "MAS Core",
+        "name": "MAS Core CPI",
         "desc": "MAS measure of core inflation, excluding accommodation and private road transport — preferred policy gauge.",
     },
     "MAS Core Inflation MoM": {
-        "name": "MAS Core",
+        "name": "MAS Core CPI",
         "desc": "Month-on-month change in MAS Core Inflation — derived from the level index since MAS doesn't publish MoM directly.",
     },
     "MAS Core Inflation Index": {
@@ -505,32 +507,34 @@ SERIES_DESCRIPTIONS: dict[str, dict[str, str]] = {
 
     # ════════════════════════════════════════════════════════════════════
     # REGIONAL — CPI Headline (YoY)
-    # Friendly name = country only (chart context tells you it's CPI YoY).
+    # Per-country charts (one per country) plot headline + core together,
+    # so legends use the type ("Headline CPI" / "Core CPI"); the country is
+    # already in the chart title.
     # ════════════════════════════════════════════════════════════════════
-    "regional_cpi_headline_cn": {"name": "China",       "desc": "China CPI — year-on-year change in the headline consumer price index (NBS)."},
-    "regional_cpi_headline_in": {"name": "India",       "desc": "India CPI — year-on-year change in the headline consumer price index (MoSPI)."},
-    "regional_cpi_headline_id": {"name": "Indonesia",   "desc": "Indonesia CPI — year-on-year change in the headline consumer price index (BPS)."},
-    "regional_cpi_headline_jp": {"name": "Japan",       "desc": "Japan CPI — year-on-year change in the headline consumer price index (MIC)."},
-    "regional_cpi_headline_my": {"name": "Malaysia",    "desc": "Malaysia CPI — year-on-year change in the headline consumer price index (DOSM)."},
-    "regional_cpi_headline_ph": {"name": "Philippines", "desc": "Philippines CPI — year-on-year change in the headline consumer price index (PSA)."},
-    "regional_cpi_headline_kr": {"name": "South Korea", "desc": "South Korea CPI — year-on-year change in the headline consumer price index (KOSTAT)."},
-    "regional_cpi_headline_tw": {"name": "Taiwan",      "desc": "Taiwan CPI — year-on-year change in the headline consumer price index (DGBAS)."},
-    "regional_cpi_headline_th": {"name": "Thailand",    "desc": "Thailand CPI — year-on-year change in the headline consumer price index (MoC)."},
-    "regional_cpi_headline_vn": {"name": "Vietnam",     "desc": "Vietnam CPI — year-on-year change in the headline consumer price index (GSO)."},
+    "regional_cpi_headline_cn": {"name": "Headline CPI", "desc": "China CPI — year-on-year change in the headline consumer price index (NBS)."},
+    "regional_cpi_headline_in": {"name": "Headline CPI", "desc": "India CPI — year-on-year change in the headline consumer price index (MoSPI)."},
+    "regional_cpi_headline_id": {"name": "Headline CPI", "desc": "Indonesia CPI — year-on-year change in the headline consumer price index (BPS)."},
+    "regional_cpi_headline_jp": {"name": "Headline CPI", "desc": "Japan CPI — year-on-year change in the headline consumer price index (MIC)."},
+    "regional_cpi_headline_my": {"name": "Headline CPI", "desc": "Malaysia CPI — year-on-year change in the headline consumer price index (DOSM)."},
+    "regional_cpi_headline_ph": {"name": "Headline CPI", "desc": "Philippines CPI — year-on-year change in the headline consumer price index (PSA)."},
+    "regional_cpi_headline_kr": {"name": "Headline CPI", "desc": "South Korea CPI — year-on-year change in the headline consumer price index (KOSTAT)."},
+    "regional_cpi_headline_tw": {"name": "Headline CPI", "desc": "Taiwan CPI — year-on-year change in the headline consumer price index (DGBAS)."},
+    "regional_cpi_headline_th": {"name": "Headline CPI", "desc": "Thailand CPI — year-on-year change in the headline consumer price index (MoC)."},
+    "regional_cpi_headline_vn": {"name": "Headline CPI", "desc": "Vietnam CPI — year-on-year change in the headline consumer price index (GSO)."},
 
     # ════════════════════════════════════════════════════════════════════
     # REGIONAL — CPI Core (YoY)
     # ════════════════════════════════════════════════════════════════════
-    "regional_cpi_core_cn": {"name": "China",       "desc": "China core CPI — year-on-year change excluding food and energy."},
-    "regional_cpi_core_in": {"name": "India",       "desc": "India core CPI — year-on-year change excluding food and fuel & light."},
-    "regional_cpi_core_id": {"name": "Indonesia",   "desc": "Indonesia core CPI — year-on-year change excluding administered prices and volatile foods."},
-    "regional_cpi_core_jp": {"name": "Japan",       "desc": "Japan core CPI — year-on-year change excluding fresh food and energy (BoJ's preferred core gauge)."},
-    "regional_cpi_core_my": {"name": "Malaysia",    "desc": "Malaysia core CPI — year-on-year change excluding fresh food and administered prices."},
-    "regional_cpi_core_ph": {"name": "Philippines", "desc": "Philippines core CPI — year-on-year change excluding selected food and energy items."},
-    "regional_cpi_core_kr": {"name": "South Korea", "desc": "South Korea core CPI — year-on-year change excluding food and energy."},
-    "regional_cpi_core_tw": {"name": "Taiwan",      "desc": "Taiwan core CPI — year-on-year change excluding fruits, vegetables, and energy."},
-    "regional_cpi_core_th": {"name": "Thailand",    "desc": "Thailand core CPI — year-on-year change excluding raw food and energy."},
-    "regional_cpi_core_vn": {"name": "Vietnam",     "desc": "Vietnam core CPI — year-on-year change excluding food, energy, and state-managed items."},
+    "regional_cpi_core_cn": {"name": "Core CPI", "desc": "China core CPI — year-on-year change excluding food and energy."},
+    "regional_cpi_core_in": {"name": "Core CPI", "desc": "India core CPI — year-on-year change excluding food and fuel & light."},
+    "regional_cpi_core_id": {"name": "Core CPI", "desc": "Indonesia core CPI — year-on-year change excluding administered prices and volatile foods."},
+    "regional_cpi_core_jp": {"name": "Core CPI", "desc": "Japan core CPI — year-on-year change excluding fresh food and energy (BoJ's preferred core gauge)."},
+    "regional_cpi_core_my": {"name": "Core CPI", "desc": "Malaysia core CPI — year-on-year change excluding fresh food and administered prices."},
+    "regional_cpi_core_ph": {"name": "Core CPI", "desc": "Philippines core CPI — year-on-year change excluding selected food and energy items."},
+    "regional_cpi_core_kr": {"name": "Core CPI", "desc": "South Korea core CPI — year-on-year change excluding food and energy."},
+    "regional_cpi_core_tw": {"name": "Core CPI", "desc": "Taiwan core CPI — year-on-year change excluding fruits, vegetables, and energy."},
+    "regional_cpi_core_th": {"name": "Core CPI", "desc": "Thailand core CPI — year-on-year change excluding raw food and energy."},
+    "regional_cpi_core_vn": {"name": "Core CPI", "desc": "Vietnam core CPI — year-on-year change excluding food, energy, and state-managed items."},
 
     # ════════════════════════════════════════════════════════════════════
     # REGIONAL — Industrial Production

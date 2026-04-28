@@ -360,8 +360,8 @@ DEPENDENCY_NODES = {
     #          "What does it mean for Singapore's price levels?"
     # ==================================================================
     "sg_cpi": node(
-        label="Headline Inflation",
-        description="CPI and MAS Core Inflation — the broadest measure of how energy cost shocks reach households.",
+        label="Inflation",
+        description="Headline CPI and MAS Core inflation — the broadest measure of how energy cost shocks reach households.",
         series_ids=["ceic_cpi_yoy", "ceic_cpi_mom", "ceic_mas_core_inflation", "mas_core_inflation_mom"],
         google_sheet_series=[],
         sheet_keywords=["cpi", "inflation"],

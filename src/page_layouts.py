@@ -318,18 +318,26 @@ PAGES = {
                         "subsections": [
                             {
                                 "type": "chart_grid",
-                                "title": "Regional consumer prices",
+                                "title": "Inflation — Annual",
                                 "description": (
                                     "Year-on-year inflation across 10 Asian economies "
                                     "(China, India, Indonesia, Japan, Malaysia, Philippines, "
-                                    "South Korea, Taiwan, Thailand, Vietnam). Headline CPI "
-                                    "captures the broadest pass-through of the Iran/Hormuz "
-                                    "energy shock; core CPI strips out food and energy to "
-                                    "show second-round effects."
+                                    "South Korea, Taiwan, Thailand, Vietnam). Each chart shows "
+                                    "headline CPI and core CPI side-by-side: headline captures "
+                                    "the broadest pass-through of the Iran/Hormuz energy shock; "
+                                    "core strips out food and energy to expose second-round effects."
                                 ),
                                 "nodes": [
-                                    "regional_cpi_headline",
-                                    "regional_cpi_core",
+                                    {"label": "China — Annual",       "description": "Headline and core CPI for China — year-on-year, % change.",       "series": ["regional_cpi_headline_cn", "regional_cpi_core_cn"]},
+                                    {"label": "India — Annual",       "description": "Headline and core CPI for India — year-on-year, % change.",       "series": ["regional_cpi_headline_in", "regional_cpi_core_in"]},
+                                    {"label": "Indonesia — Annual",   "description": "Headline and core CPI for Indonesia — year-on-year, % change.",   "series": ["regional_cpi_headline_id", "regional_cpi_core_id"]},
+                                    {"label": "Japan — Annual",       "description": "Headline and core CPI for Japan — year-on-year, % change.",       "series": ["regional_cpi_headline_jp", "regional_cpi_core_jp"]},
+                                    {"label": "Malaysia — Annual",    "description": "Headline and core CPI for Malaysia — year-on-year, % change.",    "series": ["regional_cpi_headline_my", "regional_cpi_core_my"]},
+                                    {"label": "Philippines — Annual", "description": "Headline and core CPI for the Philippines — year-on-year, % change.", "series": ["regional_cpi_headline_ph", "regional_cpi_core_ph"]},
+                                    {"label": "South Korea — Annual", "description": "Headline and core CPI for South Korea — year-on-year, % change.", "series": ["regional_cpi_headline_kr", "regional_cpi_core_kr"]},
+                                    {"label": "Taiwan — Annual",      "description": "Headline and core CPI for Taiwan — year-on-year, % change.",      "series": ["regional_cpi_headline_tw", "regional_cpi_core_tw"]},
+                                    {"label": "Thailand — Annual",    "description": "Headline and core CPI for Thailand — year-on-year, % change.",    "series": ["regional_cpi_headline_th", "regional_cpi_core_th"]},
+                                    {"label": "Vietnam — Annual",     "description": "Headline and core CPI for Vietnam — year-on-year, % change.",     "series": ["regional_cpi_headline_vn", "regional_cpi_core_vn"]},
                                 ],
                             },
                         ],

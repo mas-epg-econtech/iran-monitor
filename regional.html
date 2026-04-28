@@ -1,0 +1,1021 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Regional — Iran Monitor</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/luxon@3.4.4/build/global/luxon.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1.3.1/dist/chartjs-adapter-luxon.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+  <style>
+    /* ── Theme ── */
+    :root {
+      --bg-base: #0a1623;
+      --bg-card: rgba(20, 35, 53, 0.55);
+      --bg-card-hover: rgba(20, 35, 53, 0.75);
+      --border: rgba(194, 154, 81, 0.2);
+      --border-strong: rgba(194, 154, 81, 0.45);
+      --text: #e0e6ef;
+      --text-muted: rgba(224, 230, 239, 0.55);
+      --text-dim: rgba(224, 230, 239, 0.35);
+      --accent: #f0d08a;
+      --accent-soft: rgba(240, 208, 138, 0.15);
+      --kpi-up: #f87171;
+      --kpi-down: #34d399;
+    }
+
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0; padding: 0;
+      background: var(--bg-base);
+      background-image:
+        radial-gradient(circle at 20% 0%, rgba(120, 60, 30, 0.08), transparent 50%),
+        radial-gradient(circle at 80% 100%, rgba(40, 80, 120, 0.08), transparent 50%);
+      background-attachment: fixed;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* ── Top nav ── */
+    .topnav {
+      display: flex; gap: 0.4rem;
+      padding: 0.85rem 2rem;
+      border-bottom: 1px solid var(--border);
+      background: rgba(10, 22, 35, 0.85);
+      backdrop-filter: blur(8px);
+      position: sticky; top: 0; z-index: 50;
+    }
+    .nav-link {
+      padding: 0.4rem 0.95rem;
+      border-radius: 6px;
+      color: var(--text-muted);
+      font-size: 0.88rem; font-weight: 500;
+    }
+    .nav-link:hover { color: var(--text); background: rgba(255,255,255,0.04); text-decoration: none; }
+    .nav-link.active { color: var(--accent); background: var(--accent-soft); }
+
+    /* ── Page header ── */
+    .page-header {
+      max-width: 1280px; margin: 0 auto; padding: 2.5rem 2rem 1rem;
+    }
+    .page-header h1 {
+      font-size: 2rem; font-weight: 700; margin: 0 0 0.4rem; color: var(--text);
+      letter-spacing: -0.02em;
+    }
+    .page-header .subtitle { color: var(--text-muted); margin: 0; font-size: 1rem; }
+
+    /* ── Container ── */
+    main { max-width: 1280px; margin: 0 auto; padding: 0 2rem 4rem; }
+
+    /* ── Narrative card ── */
+    .narrative-card {
+      background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px;
+      padding: 1.5rem 1.75rem; margin: 1.5rem 0 2rem;
+      backdrop-filter: blur(8px);
+    }
+    .narrative-header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem; }
+    .narrative-header h2 { margin: 0; font-size: 1.1rem; color: var(--accent); }
+    .narrative-badge {
+      font-size: 0.7rem; padding: 0.2rem 0.55rem;
+      border-radius: 4px; letter-spacing: 0.05em; text-transform: uppercase; font-weight: 600;
+    }
+    .narrative-badge.placeholder { background: rgba(194, 154, 81, 0.15); color: rgba(240, 208, 138, 0.75); }
+    .narrative-badge.live { background: rgba(52, 211, 153, 0.15); color: #34d399; }
+    .narrative-body p { margin: 0 0 0.75rem; line-height: 1.65; color: var(--text); }
+    .narrative-body p:last-child { margin-bottom: 0; }
+    .narrative-timestamp { margin: 0.75rem 0 0; font-size: 0.78rem; color: var(--text-dim); }
+
+    /* ── Section ── */
+    .page-section { margin: 0 0 2.5rem; }
+    .section-header h2 {
+      font-size: 1.25rem; margin: 0 0 0.4rem; color: var(--text);
+      font-weight: 600; letter-spacing: -0.01em;
+    }
+    .section-header .section-desc {
+      margin: 0 0 1.25rem; color: var(--text-muted); font-size: 0.92rem;
+      line-height: 1.55;
+    }
+
+    /* ── Chart grid ── */
+    .chart-grid {
+      display: grid; gap: 1.25rem;
+      grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+    }
+    .chart-card {
+      background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px;
+      padding: 1.25rem; backdrop-filter: blur(6px);
+      transition: border-color 0.2s;
+    }
+    .chart-card:hover { border-color: var(--border-strong); }
+    .card-header { margin-bottom: 0.75rem; }
+    .card-header h3 { margin: 0 0 0.25rem; font-size: 0.98rem; color: var(--accent); font-weight: 600; }
+    .card-desc { margin: 0; font-size: 0.83rem; color: var(--text-muted); line-height: 1.5; max-width: 64ch; }
+    .chart-container { position: relative; height: 240px; margin-top: 0.5rem; }
+    .chart-empty { padding: 2rem 0; text-align: center; }
+    .muted { color: var(--text-muted); }
+
+    /* ── Source chip palette (used in the Data sources table) ── */
+    .source-chip {
+      display: inline-block;
+      padding: 0.13rem 0.55rem;
+      border-radius: 999px;
+      font-size: 0.66rem; font-weight: 700;
+      letter-spacing: 0.04em; text-transform: uppercase;
+      white-space: nowrap;
+    }
+    .source-chip.ceic      { background: rgba(96,165,250,0.20);  color: #60a5fa; }
+    .source-chip.bloomberg { background: rgba(52,211,153,0.20);  color: #34d399; }
+    .source-chip.singstat  { background: rgba(240,208,138,0.20); color: #f0d08a; }
+    .source-chip.motorist  { background: rgba(248,113,113,0.20); color: #f87171; }
+    .source-chip.yfinance  { background: rgba(34,211,238,0.20);  color: #22d3ee; }
+    .source-chip.adb       { background: rgba(167,139,250,0.20); color: #a78bfa; }
+    .source-chip.investing { background: rgba(251,146,60,0.20);  color: #fb923c; }
+    .source-chip.other     { background: rgba(224,230,239,0.12); color: rgba(224,230,239,0.7); }
+
+    /* ── Data sources expansion (collapsible section at page bottom) ── */
+    .data-sources-section {
+      margin-top: 2.5rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--border);
+    }
+    .data-sources-section summary {
+      cursor: pointer;
+      display: flex; align-items: center; gap: 0.75rem;
+      padding: 0.7rem 0.95rem;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg-card);
+      list-style: none;
+      user-select: none;
+      transition: all 0.18s;
+    }
+    .data-sources-section summary::-webkit-details-marker { display: none; }
+    .data-sources-section summary::before {
+      content: "▶";
+      color: var(--text-muted);
+      font-size: 0.65rem;
+      transition: transform 0.2s;
+      display: inline-block;
+    }
+    .data-sources-section[open] summary::before {
+      transform: rotate(90deg);
+    }
+    .data-sources-section summary:hover {
+      background: var(--bg-card-hover);
+      border-color: var(--border-strong);
+    }
+    .ds-summary-label { color: var(--accent); font-weight: 600; font-size: 0.95rem; flex: 1; }
+    .ds-summary-count { color: var(--text-muted); font-size: 0.78rem; }
+
+    .ds-table-wrap {
+      margin-top: 1rem;
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+    .ds-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8rem;
+      color: var(--text);
+    }
+    .ds-table th, .ds-table td {
+      text-align: left;
+      padding: 0.6rem 0.85rem;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+      vertical-align: top;
+    }
+    .ds-table th {
+      color: var(--text-muted);
+      font-weight: 600;
+      font-size: 0.70rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      background: rgba(0,0,0,0.18);
+      position: sticky; top: 0;
+    }
+    .ds-table tbody tr:last-child td { border-bottom: none; }
+    .ds-table tbody tr:hover td { background: rgba(255,255,255,0.025); }
+    .ds-table tbody tr.ds-row-hidden { display: none; }
+    .ds-table .ds-chart  { color: var(--accent); font-weight: 500; white-space: nowrap; }
+    .ds-table .ds-series { color: rgba(224,230,239,0.85); }
+    .ds-table .ds-id {
+      font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 0.74rem;
+      color: rgba(224,230,239,0.55);
+    }
+
+    /* ── Date-range bar (zoom selector) ── */
+    .date-range-bar {
+      display: flex; align-items: center; gap: 0.4rem;
+      margin: 0 0 1.25rem;
+    }
+    .date-range-bar .dr-label {
+      font-size: 0.72rem; color: rgba(224,230,239,0.4);
+      margin-right: 0.2rem; font-weight: 600;
+      letter-spacing: 0.05em; text-transform: uppercase;
+    }
+    .dr-btn {
+      padding: 0.28rem 0.75rem;
+      border-radius: 999px;
+      border: 1px solid rgba(194,154,81,0.25);
+      background: rgba(194,154,81,0.06);
+      color: rgba(224,230,239,0.6);
+      font-size: 0.74rem; font-weight: 600;
+      cursor: pointer; transition: all 0.18s ease;
+      font-family: inherit;
+    }
+    .dr-btn:hover {
+      border-color: rgba(194,154,81,0.5);
+      color: var(--text);
+      background: rgba(194,154,81,0.12);
+    }
+    .dr-btn.dr-active {
+      border-color: var(--accent);
+      background: rgba(194,154,81,0.22);
+      color: var(--accent);
+    }
+    .chart-stale-label {
+      font-size: 0.72rem; color: rgba(248,113,113,0.78);
+      font-style: italic;
+      margin: 0 0 0.4rem 0.1rem;
+    }
+
+    /* ── Tabs ── */
+    .tab-nav {
+      display: flex; gap: 0.4rem; border-bottom: 1px solid var(--border);
+      margin-bottom: 1.5rem;
+    }
+    .tab-btn {
+      background: transparent; border: 0; padding: 0.65rem 1.25rem;
+      color: var(--text-muted); cursor: pointer; font-size: 0.92rem; font-weight: 500;
+      border-bottom: 2px solid transparent; margin-bottom: -1px;
+      font-family: inherit;
+    }
+    .tab-btn:hover { color: var(--text); }
+    .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* ── Iframe section ── */
+    .iframe-section .iframe-link { font-size: 0.88rem; margin-top: 0.5rem; }
+    .iframe-wrap {
+      margin-top: 1rem; height: 80vh; min-height: 600px;
+      background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px;
+      overflow: hidden;
+    }
+    .iframe-wrap iframe { width: 100%; height: 100%; border: 0; display: block; }
+
+    /* ── Placeholder card ── */
+    .placeholder-card {
+      background: var(--bg-card); border: 1px dashed var(--border); border-radius: 10px;
+      padding: 1.5rem 1.75rem;
+    }
+    .placeholder-badge {
+      display: inline-block; padding: 0.25rem 0.65rem;
+      background: rgba(194, 154, 81, 0.18); color: var(--accent);
+      border-radius: 4px; font-size: 0.7rem; font-weight: 600;
+      letter-spacing: 0.05em; text-transform: uppercase;
+      margin-bottom: 0.75rem;
+    }
+    .placeholder-card h2 { margin: 0 0 0.5rem; font-size: 1.15rem; color: var(--text); }
+    .placeholder-intro { margin: 0 0 0.5rem; color: var(--text-muted); font-size: 0.9rem; }
+    .planned-content { margin: 0; padding-left: 1.4rem; color: var(--text-muted); line-height: 1.6; font-size: 0.9rem; }
+
+    /* ── Landing nav cards ── */
+    .nav-cards-grid {
+      display: grid; gap: 1.25rem;
+      grid-template-columns: repeat(3, 1fr);
+      margin-top: 1.5rem;
+    }
+    .nav-card {
+      background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px;
+      color: var(--text); text-decoration: none;
+      transition: all 0.2s;
+      display: flex; flex-direction: column;
+      overflow: hidden;
+    }
+    .nav-card:hover { background: var(--bg-card-hover); border-color: var(--border-strong); transform: translateY(-2px); text-decoration: none; }
+    .nav-card-hero {
+      width: 100%; height: 160px;
+      background: rgba(0,0,0,0.18);
+      border-bottom: 1px solid var(--border);
+      overflow: hidden;
+    }
+    .nav-card-hero svg { display: block; width: 100%; height: 100%; }
+    .nav-card-body { padding: 1.4rem 1.6rem 1.6rem; flex: 1; }
+    .nav-card h3 { margin: 0 0 0.4rem; font-size: 1.15rem; color: var(--accent); font-weight: 600; }
+    .nav-card p { margin: 0; color: var(--text-muted); font-size: 0.92rem; line-height: 1.55; }
+
+    @media (max-width: 900px) {
+      .nav-cards-grid { grid-template-columns: 1fr; }
+    }
+
+    /* ── Report series intro (above PDF cards) ── */
+    .report-series-intro {
+      margin: 0 0 1.5rem;
+      padding: 1.1rem 1.4rem 1.2rem;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--accent);
+      border-radius: 8px;
+    }
+    .report-series-intro h3 {
+      margin: 0 0 0.6rem; font-size: 1.05rem;
+      color: var(--accent); font-weight: 600;
+    }
+    .report-series-intro p {
+      margin: 0 0 0.6rem; color: var(--text);
+      font-size: 0.92rem; line-height: 1.6;
+    }
+    .report-series-intro p:last-child { margin-bottom: 0; }
+
+    /* ── PDF cards ── */
+    .pdf-grid {
+      display: grid; gap: 1rem;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    }
+    .pdf-card {
+      display: flex; gap: 1rem; align-items: center;
+      background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px;
+      padding: 1rem; text-decoration: none; color: var(--text);
+      transition: all 0.2s; position: relative;
+    }
+    .pdf-card:hover { background: var(--bg-card-hover); border-color: var(--border-strong); text-decoration: none; }
+    .pdf-flag {
+      width: 56px; height: 38px; flex-shrink: 0;
+      border-radius: 4px; overflow: hidden;
+      background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06);
+    }
+    .pdf-meta { flex: 1; min-width: 0; }
+    .pdf-meta h4 { margin: 0 0 0.2rem; font-size: 0.95rem; color: var(--text); font-weight: 600; line-height: 1.3; }
+    .pdf-date { margin: 0; font-size: 0.8rem; color: var(--text-muted); }
+    .pdf-country { margin: 0.15rem 0 0; font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em; }
+    .pdf-arrow { font-size: 1rem; color: var(--accent); opacity: 0.6; }
+    .pdf-card:hover .pdf-arrow { opacity: 1; }
+    .pdf-card.pdf-loading { opacity: 0.6; pointer-events: none; }
+
+    /* ── Access-warning modal (shown when a PDF card preflight fails) ── */
+    .modal-overlay {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.7);
+      backdrop-filter: blur(4px);
+      z-index: 1000;
+      align-items: center; justify-content: center;
+      padding: 1rem;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal-content {
+      background: var(--bg-base);
+      border: 1px solid var(--border-strong);
+      border-radius: 12px;
+      padding: 1.75rem 2rem 1.5rem;
+      max-width: 520px; width: 100%;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+    }
+    .modal-content h3 {
+      margin: 0 0 0.85rem;
+      color: var(--accent);
+      font-size: 1.15rem; font-weight: 600;
+    }
+    .modal-content p {
+      margin: 0 0 0.85rem;
+      color: var(--text);
+      font-size: 0.93rem; line-height: 1.55;
+    }
+    .modal-content p:last-of-type { margin-bottom: 1.25rem; }
+    .modal-content code {
+      background: rgba(255,255,255,0.05);
+      padding: 0.12rem 0.4rem;
+      border-radius: 4px;
+      font-family: ui-monospace, SFMono-Regular, monospace;
+      font-size: 0.85rem; color: var(--accent);
+    }
+    .modal-link {
+      color: var(--accent); font-weight: 500; text-decoration: none;
+      border-bottom: 1px dashed rgba(240,208,138,0.4);
+    }
+    .modal-link:hover { border-bottom-style: solid; text-decoration: none; }
+    .modal-actions { display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 1rem; }
+    .modal-btn {
+      padding: 0.5rem 1.2rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 0.88rem; font-weight: 600;
+      border: 1px solid var(--border);
+      transition: all 0.18s;
+    }
+    .modal-btn.modal-btn-primary {
+      background: rgba(194,154,81,0.22);
+      color: var(--accent);
+      border-color: rgba(194,154,81,0.5);
+    }
+    .modal-btn.modal-btn-primary:hover { background: rgba(194,154,81,0.32); }
+    .modal-btn.modal-btn-secondary {
+      background: transparent;
+      color: var(--text-muted);
+    }
+    .modal-btn.modal-btn-secondary:hover { color: var(--text); background: rgba(255,255,255,0.04); }
+
+    /* ── Footer ── */
+    footer {
+      max-width: 1280px; margin: 2rem auto 0; padding: 1.5rem 2rem;
+      border-top: 1px solid var(--border);
+      font-size: 0.78rem; color: var(--text-dim);
+      display: flex; justify-content: space-between; flex-wrap: wrap; gap: 1rem;
+    }
+
+    @media (max-width: 720px) {
+      .page-header { padding: 1.5rem 1rem 0.5rem; }
+      .page-header h1 { font-size: 1.5rem; }
+      main { padding: 0 1rem 3rem; }
+      .topnav { padding: 0.65rem 1rem; overflow-x: auto; }
+      .chart-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <nav class="topnav"><a class="nav-link" href="index.html">Home</a><a class="nav-link" href="global_shocks.html">Global Shocks</a><a class="nav-link" href="singapore.html">Singapore</a><a class="nav-link active" href="regional.html">Regional</a></nav>
+
+  <header class="page-header">
+    <h1>Regional</h1>
+    <p class="subtitle">Asian economies exposed to Middle East stress: financial markets and country-level monitoring</p>
+  </header>
+
+  <main>
+    
+    <section class="narrative-card">
+      <div class="narrative-header">
+        <h2>Key Takeaways</h2>
+        <span class="narrative-badge placeholder">Placeholder</span>
+      </div>
+      <div class="narrative-body">
+        <p class="muted">Regional takeaways will appear here once narrative regeneration is wired in.</p>
+      </div>
+    </section>
+    
+    <div class="date-range-bar">
+      <span class="dr-label">Zoom</span>
+      <button class="dr-btn dr-active" data-range="war" onclick="setDateRange('war')">War period</button>
+      <button class="dr-btn" data-range="1y" onclick="setDateRange('1y')">1Y</button>
+      <button class="dr-btn" data-range="all" onclick="setDateRange('all')">All time</button>
+    </div>
+    
+    <section class="page-section">
+      <div class="tab-nav"><button class="tab-btn active" data-tab="prices" onclick="switchTab(this, 'prices')">Prices</button><button class="tab-btn" data-tab="sectoral_activity" onclick="switchTab(this, 'sectoral_activity')">Sectoral activity</button><button class="tab-btn" data-tab="trade" onclick="switchTab(this, 'trade')">Trade</button><button class="tab-btn" data-tab="shipping" onclick="switchTab(this, 'shipping')">Shipping</button><button class="tab-btn" data-tab="financial_markets" onclick="switchTab(this, 'financial_markets')">Financial markets</button><button class="tab-btn" data-tab="mas_epg_reports" onclick="switchTab(this, 'mas_epg_reports')">MAS EPG reports</button></div>
+      <div class="tab-panels"><div class="tab-panel active" id="tab-prices">
+    <section class="page-section">
+      <div class="placeholder-card">
+        <div class="placeholder-badge">Coming soon</div>
+        <h2>Prices</h2>
+        <p class="placeholder-intro">Planned content for this section:</p>
+        <ul class="planned-content"><li>Regional CPI prints (ASEAN-6 + India, Japan, Korea, Taiwan)</li><li>Retail fuel prices by country</li><li>Regional electricity / gas tariffs</li></ul>
+      </div>
+    </section></div><div class="tab-panel" id="tab-sectoral_activity">
+    <section class="page-section">
+      <div class="placeholder-card">
+        <div class="placeholder-badge">Coming soon</div>
+        <h2>Sectoral economic activity</h2>
+        <p class="placeholder-intro">Planned content for this section:</p>
+        <ul class="planned-content"><li>Regional industrial production indices</li><li>Manufacturing PMIs</li><li>Country-level activity proxies</li></ul>
+      </div>
+    </section></div><div class="tab-panel" id="tab-trade">
+    <section class="page-section">
+      <div class="placeholder-card">
+        <div class="placeholder-badge">Coming soon</div>
+        <h2>Trade</h2>
+        <p class="placeholder-intro">Planned content for this section:</p>
+        <ul class="planned-content"><li>Regional petroleum trade flows</li><li>Bilateral trade exposure to ME / Iran</li><li>Container throughput at major Asian ports</li></ul>
+      </div>
+    </section></div><div class="tab-panel" id="tab-shipping">
+    <section class="page-section">
+      <div class="placeholder-card">
+        <div class="placeholder-badge">Coming soon</div>
+        <h2>Shipping</h2>
+        <p class="placeholder-intro">Planned content for this section:</p>
+        <ul class="planned-content"><li>East Asian / SE Asian / Indian Subcontinent regional aggregates (PortWatch)</li><li>Country-level shipping flow data for India, Japan, Korea, Taiwan, Philippines, ASEAN composite</li><li>Major Asian port call volumes (Busan, Tokyo, Shanghai, Mumbai, Manila, Kaohsiung, etc.)</li></ul>
+      </div>
+    </section></div><div class="tab-panel" id="tab-financial_markets">
+    <section class="page-section">
+      <div class="section-header">
+        <h2>Financial markets</h2>
+        <p class="section-desc">ASEAN currency, sovereign bond, and commodity benchmarks. FX from yfinance (IDR, MYR, PHP, THB, VND); 10-year sovereign yields from ADB AsianBondsOnline; key commodities (Brent, JKM LNG, Newcastle coal, palm oil, rubber, nickel, gold) from yfinance and Investing.com.</p>
+      </div>
+      <div class="chart-grid">
+        
+    <div class="chart-card">
+      <div class="card-header">
+        <h3>FX (per USD)</h3>
+        
+      </div>
+      <div class="chart-container"><canvas id="chart_FX_(per_USD)_0"></canvas></div>
+    </div>
+
+    <div class="chart-card">
+      <div class="card-header">
+        <h3>10-Year Sovereign Yields (%)</h3>
+        
+      </div>
+      <div class="chart-container"><canvas id="chart_10-Year_Sovereign_Yields_(%)_1"></canvas></div>
+    </div>
+
+    <div class="chart-card">
+      <div class="card-header">
+        <h3>Commodities — USD/bbl</h3>
+        
+      </div>
+      <div class="chart-container"><canvas id="chart_Commodities_usd_bbl_2"></canvas></div>
+    </div>
+
+    <div class="chart-card">
+      <div class="card-header">
+        <h3>Commodities — USD/MMBtu</h3>
+        
+      </div>
+      <div class="chart-container"><canvas id="chart_Commodities_usd_mmbtu_3"></canvas></div>
+    </div>
+
+    <div class="chart-card">
+      <div class="card-header">
+        <h3>Commodities — USD/tonne</h3>
+        
+      </div>
+      <div class="chart-container"><canvas id="chart_Commodities_usd_tonne_4"></canvas></div>
+    </div>
+
+    <div class="chart-card">
+      <div class="card-header">
+        <h3>Commodities — MYR/tonne</h3>
+        
+      </div>
+      <div class="chart-container"><canvas id="chart_Commodities_myr_tonne_5"></canvas></div>
+    </div>
+
+    <div class="chart-card">
+      <div class="card-header">
+        <h3>Commodities — USc/kg</h3>
+        
+      </div>
+      <div class="chart-container"><canvas id="chart_Commodities_usc_kg_6"></canvas></div>
+    </div>
+
+    <div class="chart-card">
+      <div class="card-header">
+        <h3>Commodities — USD/oz</h3>
+        
+      </div>
+      <div class="chart-container"><canvas id="chart_Commodities_usd_oz_7"></canvas></div>
+    </div>
+      </div>
+    </section></div><div class="tab-panel" id="tab-mas_epg_reports">
+    <section class="page-section">
+      <div class="section-header">
+        <h2>MAS EPG reports</h2>
+        
+      </div>
+      
+      <div class="report-series-intro">
+        <h3>Middle East Faultline Watch</h3>
+        <p>ME Faultline Watch (“The Watch”) is a joint initiative by IED and FMS to identify countries most exposed to energy and/or financial stress arising from the Middle East conflict. The Watch focuses on economies with the weakest links—those facing heightened external spillovers amid limited energy and financial buffers—where shocks from higher energy prices, tighter financial conditions, or disrupted flows are most likely to translate into macro-financial vulnerabilities.</p>
+      </div>
+      <div class="pdf-grid">
+        <a class="pdf-card" href="https://team.dms.mas.gov.sg/sites/EPG_IED/2.2%20Regular%20Outputs/ME%20Watch/1_ME%20Faultline%20Watch%20-%20Philippines%20(23%20March%202026).pdf" target="_blank" rel="noopener" onclick="pdfCardClick(event, this.href)">
+          <div class="pdf-flag"><svg viewBox="0 0 60 40" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet" style="width:100%; height:100%; display:block;"><rect width="60" height="20" fill="#0038A8"/><rect y="20" width="60" height="20" fill="#CE1126"/><polygon points="0,0 0,40 23,20" fill="#FFFFFF"/><g transform="translate(8,20)" fill="#FCD116"><circle r="3"/><rect x="-0.5" y="-7" width="1" height="3.5" transform="rotate(0)"/><rect x="-0.5" y="-7" width="1" height="3.5" transform="rotate(45)"/><rect x="-0.5" y="-7" width="1" height="3.5" transform="rotate(90)"/><rect x="-0.5" y="-7" width="1" height="3.5" transform="rotate(135)"/><rect x="-0.5" y="-7" width="1" height="3.5" transform="rotate(180)"/><rect x="-0.5" y="-7" width="1" height="3.5" transform="rotate(225)"/><rect x="-0.5" y="-7" width="1" height="3.5" transform="rotate(270)"/><rect x="-0.5" y="-7" width="1" height="3.5" transform="rotate(315)"/></g><polygon points="2,3 2.5,4.2 3.7,4.2 2.7,4.9 3.1,6.1 2,5.4 0.9,6.1 1.3,4.9 0.3,4.2 1.5,4.2" fill="#FCD116"/><polygon points="2,37 2.5,35.8 3.7,35.8 2.7,35.1 3.1,33.9 2,34.6 0.9,33.9 1.3,35.1 0.3,35.8 1.5,35.8" fill="#FCD116"/><polygon points="20,20 20.5,21.2 21.7,21.2 20.7,21.9 21.1,23.1 20,22.4 18.9,23.1 19.3,21.9 18.3,21.2 19.5,21.2" fill="#FCD116"/></svg></div>
+          <div class="pdf-meta">
+            <h4>ME Faultline Watch — Philippines</h4>
+            <p class="pdf-date">23 Mar 2026</p>
+            <p class="pdf-country">Philippines</p>
+          </div>
+          <div class="pdf-arrow">↗</div>
+        </a>
+        <a class="pdf-card" href="https://team.dms.mas.gov.sg/sites/EPG_IED/2.2%20Regular%20Outputs/ME%20Watch/2_ME%20Faultline%20Watch%20-%20India%20(2%20April%202026).pdf" target="_blank" rel="noopener" onclick="pdfCardClick(event, this.href)">
+          <div class="pdf-flag"><svg viewBox="0 0 60 40" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet" style="width:100%; height:100%; display:block;"><rect width="60" height="13.33" fill="#FF9933"/><rect y="13.33" width="60" height="13.33" fill="#FFFFFF"/><rect y="26.66" width="60" height="13.34" fill="#138808"/><g transform="translate(30,20)" stroke="#000080" fill="none"><circle r="5.5" stroke-width="0.6"/><circle r="1" fill="#000080"/><line x1="0" y1="0" x2="0" y2="-5" stroke-width="0.3" transform="rotate(0)"/><line x1="0" y1="0" x2="0" y2="-5" stroke-width="0.3" transform="rotate(15)"/><line x1="0" y1="0" x2="0" y2="-5" stroke-width="0.3" transform="rotate(30)"/><line x1="0" y1="0" x2="0" y2="-5" stroke-width="0.3" transform="rotate(45)"/><line x1="0" y1="0" x2="0" y2="-5" stroke-width="0.3" transform="rotate(60)"/><line x1="0" y1="0" x2="0" y2="-5" stroke-width="0.3" transform="rotate(75)"/><line x1="0" y1="0" x2="0" y2="-5" stroke-width="0.3" transform="rotate(90)"/><line x1="0" y1="0" x2="0" y2="-5" stroke-width="0.3" transform="rotate(105)"/><line x1="0" y1="0" x2="0" y2="-5" stroke-width="0.3" transform="rotate(120)"/><line x1="0" y1="0" x2="0" y2="-5" stroke-width="0.3" transform="rotate(135)"/><line x1="0" y1="0" x2="0" y2="-5" stroke-width="0.3" transform="rotate(150)"/><line x1="0" y1="0" x2="0" y2="-5" stroke-width="0.3" transform="rotate(165)"/><line x1="0" y1="0" x2="0" y2="-5" stroke-width="0.3" transform="rotate(180)"/><line x1="0" y1="0" x2="0" y2="-5" stroke-width="0.3" transform="rotate(195)"/><line x1="0" y1="0" x2="0" y2="-5" stroke-width="0.3" transform="rotate(210)"/><line x1="0" y1="0" x2="0" y2="-5" stroke-width="0.3" transform="rotate(225)"/><line x1="0" y1="0" x2="0" y2="-5" stroke-width="0.3" transform="rotate(240)"/><line x1="0" y1="0" x2="0" y2="-5" stroke-width="0.3" transform="rotate(255)"/><line x1="0" y1="0" x2="0" y2="-5" stroke-width="0.3" transform="rotate(270)"/><line x1="0" y1="0" x2="0" y2="-5" stroke-width="0.3" transform="rotate(285)"/><line x1="0" y1="0" x2="0" y2="-5" stroke-width="0.3" transform="rotate(300)"/><line x1="0" y1="0" x2="0" y2="-5" stroke-width="0.3" transform="rotate(315)"/><line x1="0" y1="0" x2="0" y2="-5" stroke-width="0.3" transform="rotate(330)"/><line x1="0" y1="0" x2="0" y2="-5" stroke-width="0.3" transform="rotate(345)"/></g></svg></div>
+          <div class="pdf-meta">
+            <h4>ME Faultline Watch — India</h4>
+            <p class="pdf-date">2 Apr 2026</p>
+            <p class="pdf-country">India</p>
+          </div>
+          <div class="pdf-arrow">↗</div>
+        </a>
+        <a class="pdf-card" href="https://team.dms.mas.gov.sg/sites/EPG_IED/2.2%20Regular%20Outputs/ME%20Watch/3_ME%20Faultline%20Watch%20-%20Japan%20(9%20April%202026).pdf" target="_blank" rel="noopener" onclick="pdfCardClick(event, this.href)">
+          <div class="pdf-flag"><svg viewBox="0 0 60 40" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet" style="width:100%; height:100%; display:block;"><rect width="60" height="40" fill="#FFFFFF"/><circle cx="30" cy="20" r="12" fill="#BC002D"/></svg></div>
+          <div class="pdf-meta">
+            <h4>ME Faultline Watch — Japan</h4>
+            <p class="pdf-date">9 Apr 2026</p>
+            <p class="pdf-country">Japan</p>
+          </div>
+          <div class="pdf-arrow">↗</div>
+        </a>
+        <a class="pdf-card" href="https://team.dms.mas.gov.sg/sites/EPG_IED/2.2%20Regular%20Outputs/ME%20Watch/4_ME%20Faultline%20Watch%20-%20ASEAN%20(9%20April%202026).pdf" target="_blank" rel="noopener" onclick="pdfCardClick(event, this.href)">
+          <div class="pdf-flag"><svg viewBox="0 0 60 40" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet" style="width:100%; height:100%; display:block;"><rect width="60" height="40" fill="#003F87"/><circle cx="30" cy="20" r="14" fill="#FFFFFF"/><circle cx="30" cy="20" r="13" fill="none" stroke="#CD1126" stroke-width="2"/><g transform="translate(30,20)" stroke="#FCD116" stroke-width="2.2" stroke-linecap="round"><line x1="0" y1="-2" x2="0" y2="-9" transform="rotate(-90)"/><line x1="0" y1="-2" x2="0" y2="-9" transform="rotate(-72)"/><line x1="0" y1="-2" x2="0" y2="-9" transform="rotate(-54)"/><line x1="0" y1="-2" x2="0" y2="-9" transform="rotate(-36)"/><line x1="0" y1="-2" x2="0" y2="-9" transform="rotate(-18)"/><line x1="0" y1="-2" x2="0" y2="-9" transform="rotate(0)"/><line x1="0" y1="-2" x2="0" y2="-9" transform="rotate(18)"/><line x1="0" y1="-2" x2="0" y2="-9" transform="rotate(36)"/><line x1="0" y1="-2" x2="0" y2="-9" transform="rotate(54)"/><line x1="0" y1="-2" x2="0" y2="-9" transform="rotate(72)"/></g></svg></div>
+          <div class="pdf-meta">
+            <h4>ME Faultline Watch — ASEAN</h4>
+            <p class="pdf-date">9 Apr 2026</p>
+            <p class="pdf-country">ASEAN</p>
+          </div>
+          <div class="pdf-arrow">↗</div>
+        </a>
+        <a class="pdf-card" href="https://team.dms.mas.gov.sg/sites/EPG_IED/2.2%20Regular%20Outputs/ME%20Watch/5_ME%20Faultline%20Watch%20-%20Korea%20(17%20April%202026).pdf" target="_blank" rel="noopener" onclick="pdfCardClick(event, this.href)">
+          <div class="pdf-flag"><svg viewBox="0 0 60 40" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet" style="width:100%; height:100%; display:block;"><rect width="60" height="40" fill="#FFFFFF"/><g transform="translate(30,20)"><circle r="9" fill="#FFFFFF"/><path d="M -9,0 A 9,9 0 0 1 9,0 A 4.5,4.5 0 0 0 0,0 A 4.5,4.5 0 0 1 -9,0 Z" fill="#CD2E3A"/><path d="M 9,0 A 9,9 0 0 1 -9,0 A 4.5,4.5 0 0 0 0,0 A 4.5,4.5 0 0 1 9,0 Z" fill="#0047A0"/></g><g transform="translate(8,8)" fill="#000000"><rect x="-4" y="-1.2" width="8" height="0.8"/><rect x="-4" y="-0.4" width="8" height="0.8"/><rect x="-4" y="0.4" width="8" height="0.8"/></g><g transform="translate(52,8)" fill="#000000"><rect x="-4" y="-1.2" width="8" height="0.8"/><rect x="-4" y="-0.4" width="3" height="0.8"/><rect x="1" y="-0.4" width="3" height="0.8"/><rect x="-4" y="0.4" width="8" height="0.8"/></g><g transform="translate(8,32)" fill="#000000"><rect x="-4" y="-1.2" width="3" height="0.8"/><rect x="1" y="-1.2" width="3" height="0.8"/><rect x="-4" y="-0.4" width="8" height="0.8"/><rect x="-4" y="0.4" width="3" height="0.8"/><rect x="1" y="0.4" width="3" height="0.8"/></g><g transform="translate(52,32)" fill="#000000"><rect x="-4" y="-1.2" width="3" height="0.8"/><rect x="1" y="-1.2" width="3" height="0.8"/><rect x="-4" y="-0.4" width="3" height="0.8"/><rect x="1" y="-0.4" width="3" height="0.8"/><rect x="-4" y="0.4" width="3" height="0.8"/><rect x="1" y="0.4" width="3" height="0.8"/></g></svg></div>
+          <div class="pdf-meta">
+            <h4>ME Faultline Watch — Korea</h4>
+            <p class="pdf-date">17 Apr 2026</p>
+            <p class="pdf-country">Korea</p>
+          </div>
+          <div class="pdf-arrow">↗</div>
+        </a>
+        <a class="pdf-card" href="https://team.dms.mas.gov.sg/sites/EPG_IED/2.2%20Regular%20Outputs/ME%20Watch/6_ME%20Faultline%20Watch%20-%20Taiwan%20(20%20April%202026).pdf" target="_blank" rel="noopener" onclick="pdfCardClick(event, this.href)">
+          <div class="pdf-flag"><svg viewBox="0 0 60 40" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet" style="width:100%; height:100%; display:block;"><rect width="60" height="40" fill="#FE0000"/><rect width="30" height="20" fill="#000095"/><g transform="translate(15,10)"><polygon points="0,-7 1.2,-2 -1.2,-2" fill="#FFFFFF" transform="rotate(0)"/><polygon points="0,-7 1.2,-2 -1.2,-2" fill="#FFFFFF" transform="rotate(30)"/><polygon points="0,-7 1.2,-2 -1.2,-2" fill="#FFFFFF" transform="rotate(60)"/><polygon points="0,-7 1.2,-2 -1.2,-2" fill="#FFFFFF" transform="rotate(90)"/><polygon points="0,-7 1.2,-2 -1.2,-2" fill="#FFFFFF" transform="rotate(120)"/><polygon points="0,-7 1.2,-2 -1.2,-2" fill="#FFFFFF" transform="rotate(150)"/><polygon points="0,-7 1.2,-2 -1.2,-2" fill="#FFFFFF" transform="rotate(180)"/><polygon points="0,-7 1.2,-2 -1.2,-2" fill="#FFFFFF" transform="rotate(210)"/><polygon points="0,-7 1.2,-2 -1.2,-2" fill="#FFFFFF" transform="rotate(240)"/><polygon points="0,-7 1.2,-2 -1.2,-2" fill="#FFFFFF" transform="rotate(270)"/><polygon points="0,-7 1.2,-2 -1.2,-2" fill="#FFFFFF" transform="rotate(300)"/><polygon points="0,-7 1.2,-2 -1.2,-2" fill="#FFFFFF" transform="rotate(330)"/><circle r="2.5" fill="#000095"/><circle r="1.8" fill="#FFFFFF"/></g></svg></div>
+          <div class="pdf-meta">
+            <h4>ME Faultline Watch — Taiwan</h4>
+            <p class="pdf-date">20 Apr 2026</p>
+            <p class="pdf-country">Taiwan</p>
+          </div>
+          <div class="pdf-arrow">↗</div>
+        </a></div>
+    </section></div></div>
+    </section>
+    
+    <details class="data-sources-section">
+      <summary>
+        <span class="ds-summary-label">Data sources &amp; series attribution</span>
+        <span class="ds-summary-count" id="dsSummaryCount">—</span>
+      </summary>
+      <div class="ds-table-wrap">
+        <table class="ds-table">
+          <thead>
+            <tr>
+              <th>Chart</th>
+              <th>Series (legend)</th>
+              <th>Source</th>
+              <th>Series ID</th>
+              <th>Frequency</th>
+              <th>Unit</th>
+              <th>Latest</th>
+            </tr>
+          </thead>
+          <tbody>
+              <tr data-tab="financial_markets">
+                <td class="ds-chart">FX (per USD)</td>
+                <td class="ds-series">Indonesian Rupiah</td>
+                <td><span class="source-chip yfinance">Yahoo Finance</span></td>
+                <td class="ds-id">IDR</td>
+                <td>Daily</td>
+                <td>per USD</td>
+                <td>Apr 2026</td>
+              </tr>
+              <tr data-tab="financial_markets">
+                <td class="ds-chart">FX (per USD)</td>
+                <td class="ds-series">Malaysian Ringgit</td>
+                <td><span class="source-chip yfinance">Yahoo Finance</span></td>
+                <td class="ds-id">MYR</td>
+                <td>Daily</td>
+                <td>per USD</td>
+                <td>Apr 2026</td>
+              </tr>
+              <tr data-tab="financial_markets">
+                <td class="ds-chart">FX (per USD)</td>
+                <td class="ds-series">Philippine Peso</td>
+                <td><span class="source-chip yfinance">Yahoo Finance</span></td>
+                <td class="ds-id">PHP</td>
+                <td>Daily</td>
+                <td>per USD</td>
+                <td>Apr 2026</td>
+              </tr>
+              <tr data-tab="financial_markets">
+                <td class="ds-chart">FX (per USD)</td>
+                <td class="ds-series">Thai Baht</td>
+                <td><span class="source-chip yfinance">Yahoo Finance</span></td>
+                <td class="ds-id">THB</td>
+                <td>Daily</td>
+                <td>per USD</td>
+                <td>Apr 2026</td>
+              </tr>
+              <tr data-tab="financial_markets">
+                <td class="ds-chart">FX (per USD)</td>
+                <td class="ds-series">Vietnamese Dong</td>
+                <td><span class="source-chip yfinance">Yahoo Finance</span></td>
+                <td class="ds-id">VND</td>
+                <td>Daily</td>
+                <td>per USD</td>
+                <td>Apr 2026</td>
+              </tr>
+              <tr data-tab="financial_markets">
+                <td class="ds-chart">10-Year Sovereign Yields (%)</td>
+                <td class="ds-series">US 10Y Treasury Yield</td>
+                <td><span class="source-chip yfinance">Yahoo Finance</span></td>
+                <td class="ds-id">US_10Y</td>
+                <td>Daily</td>
+                <td>percent</td>
+                <td>Apr 2026</td>
+              </tr>
+              <tr data-tab="financial_markets">
+                <td class="ds-chart">10-Year Sovereign Yields (%)</td>
+                <td class="ds-series">Indonesia 10Y Govt Bond Yield</td>
+                <td><span class="source-chip adb">ADB AsianBondsOnline</span></td>
+                <td class="ds-id">ID_10Y</td>
+                <td>Daily</td>
+                <td>percent</td>
+                <td>Apr 2026</td>
+              </tr>
+              <tr data-tab="financial_markets">
+                <td class="ds-chart">10-Year Sovereign Yields (%)</td>
+                <td class="ds-series">Malaysia 10Y Govt Bond Yield</td>
+                <td><span class="source-chip adb">ADB AsianBondsOnline</span></td>
+                <td class="ds-id">MY_10Y</td>
+                <td>Daily</td>
+                <td>percent</td>
+                <td>Apr 2026</td>
+              </tr>
+              <tr data-tab="financial_markets">
+                <td class="ds-chart">10-Year Sovereign Yields (%)</td>
+                <td class="ds-series">Philippines 10Y Govt Bond Yield</td>
+                <td><span class="source-chip adb">ADB AsianBondsOnline</span></td>
+                <td class="ds-id">PH_10Y</td>
+                <td>Daily</td>
+                <td>percent</td>
+                <td>Apr 2026</td>
+              </tr>
+              <tr data-tab="financial_markets">
+                <td class="ds-chart">10-Year Sovereign Yields (%)</td>
+                <td class="ds-series">Thailand 10Y Govt Bond Yield</td>
+                <td><span class="source-chip adb">ADB AsianBondsOnline</span></td>
+                <td class="ds-id">TH_10Y</td>
+                <td>Daily</td>
+                <td>percent</td>
+                <td>Apr 2026</td>
+              </tr>
+              <tr data-tab="financial_markets">
+                <td class="ds-chart">Commodities — USD/bbl</td>
+                <td class="ds-series">Brent Crude Oil (ICE Futures)</td>
+                <td><span class="source-chip yfinance">Yahoo Finance</span></td>
+                <td class="ds-id">BRENT</td>
+                <td>Daily</td>
+                <td>USD/bbl</td>
+                <td>Apr 2026</td>
+              </tr>
+              <tr data-tab="financial_markets">
+                <td class="ds-chart">Commodities — USD/MMBtu</td>
+                <td class="ds-series">JKM LNG Futures (Platts)</td>
+                <td><span class="source-chip investing">Investing.com</span></td>
+                <td class="ds-id">JKM_LNG</td>
+                <td>Daily</td>
+                <td>USD/MMBtu</td>
+                <td>Apr 2026</td>
+              </tr>
+              <tr data-tab="financial_markets">
+                <td class="ds-chart">Commodities — USD/tonne</td>
+                <td class="ds-series">Thermal Coal (Newcastle FOB)</td>
+                <td><span class="source-chip investing">Investing.com</span></td>
+                <td class="ds-id">COAL_NEWC</td>
+                <td>Daily</td>
+                <td>USD/tonne</td>
+                <td>Apr 2026</td>
+              </tr>
+              <tr data-tab="financial_markets">
+                <td class="ds-chart">Commodities — USD/tonne</td>
+                <td class="ds-series">Nickel Futures (LME)</td>
+                <td><span class="source-chip investing">Investing.com</span></td>
+                <td class="ds-id">NICKEL</td>
+                <td>Daily</td>
+                <td>USD/tonne</td>
+                <td>Apr 2026</td>
+              </tr>
+              <tr data-tab="financial_markets">
+                <td class="ds-chart">Commodities — MYR/tonne</td>
+                <td class="ds-series">Crude Palm Oil (Bursa Malaysia FCPO)</td>
+                <td><span class="source-chip investing">Investing.com</span></td>
+                <td class="ds-id">CPO</td>
+                <td>Daily</td>
+                <td>MYR/tonne</td>
+                <td>Apr 2026</td>
+              </tr>
+              <tr data-tab="financial_markets">
+                <td class="ds-chart">Commodities — USc/kg</td>
+                <td class="ds-series">Rubber TSR20 Futures (SGX)</td>
+                <td><span class="source-chip investing">Investing.com</span></td>
+                <td class="ds-id">RUBBER_TSR20</td>
+                <td>Daily</td>
+                <td>USc/kg</td>
+                <td>Apr 2026</td>
+              </tr>
+              <tr data-tab="financial_markets">
+                <td class="ds-chart">Commodities — USD/oz</td>
+                <td class="ds-series">Gold Futures (COMEX)</td>
+                <td><span class="source-chip yfinance">Yahoo Finance</span></td>
+                <td class="ds-id">GOLD</td>
+                <td>Daily</td>
+                <td>USD/oz</td>
+                <td>Apr 2026</td>
+              </tr></tbody>
+        </table>
+      </div>
+    </details>
+  </main>
+
+  <!-- Access-warning modal (used when a PDF card link can't be reached) -->
+  <div id="access-warning-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="access-warning-title">
+    <div class="modal-content">
+      <h3 id="access-warning-title">MAS network access required</h3>
+      <p>This report is hosted on the MAS team SharePoint site (<code>team.dms.mas.gov.sg</code>) and requires you to be connected to the MAS network or VPN to open.</p>
+      <p>If you're already on the network and still seeing this, the link may have moved — you can try opening it directly:</p>
+      <p><a id="access-warning-link" href="#" target="_blank" rel="noopener" class="modal-link">Try opening anyway &rarr;</a></p>
+      <div class="modal-actions">
+        <button class="modal-btn modal-btn-secondary" onclick="closeAccessWarning()">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <span>Iran Monitor &middot; built 2026-04-28 03:34 by MAS-EPG-EconTech</span>
+    <span>Data: CEIC, SingStat, Motorist, DataGov, Bloomberg/GSheets, Yahoo Finance, ADB AsianBondsOnline, Investing.com, IMF PortWatch</span>
+  </footer>
+
+  <script>
+    // ── PDF card click → preflight then either open or show access modal ──
+    function pdfCardClick(event, url) {
+      event.preventDefault();
+      const card = event.currentTarget;
+      card.classList.add('pdf-loading');
+
+      const timeoutMs = 3000;
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+      // no-cors HEAD: opaque response on success, network/timeout error if the
+      // host is unreachable. Doesn't tell us about HTTP status (we can't read
+      // opaque responses), but does tell us if the host can be reached at all.
+      fetch(url, { mode: 'no-cors', method: 'HEAD', signal: controller.signal })
+        .then(() => {
+          clearTimeout(timeoutId);
+          card.classList.remove('pdf-loading');
+          window.open(url, '_blank', 'noopener');
+        })
+        .catch(() => {
+          clearTimeout(timeoutId);
+          card.classList.remove('pdf-loading');
+          showAccessWarning(url);
+        });
+    }
+
+    function showAccessWarning(url) {
+      const modal = document.getElementById('access-warning-modal');
+      const link = document.getElementById('access-warning-link');
+      if (link) link.href = url;
+      if (modal) modal.classList.add('open');
+    }
+
+    function closeAccessWarning() {
+      const modal = document.getElementById('access-warning-modal');
+      if (modal) modal.classList.remove('open');
+    }
+
+    // ESC key + click-on-overlay to close modal
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeAccessWarning();
+    });
+    document.addEventListener('click', (e) => {
+      const modal = document.getElementById('access-warning-modal');
+      if (modal && e.target === modal) closeAccessWarning();
+    });
+
+    // ── Tab switching ──
+    function switchTab(btn, slug) {
+      const group = btn.closest('.page-section');
+      group.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b === btn));
+      group.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'tab-' + slug));
+      filterDataSourcesByTab(slug);
+    }
+
+    // ── Data sources table — filter rows by active tab ──
+    function filterDataSourcesByTab(activeTab) {
+      const rows = document.querySelectorAll('.ds-table tbody tr');
+      let visibleRows = 0;
+      const visibleCharts = new Set();
+      rows.forEach(tr => {
+        const tabAttr = tr.dataset.tab;
+        // Rows with no data-tab (charts not inside a tab_group) always show.
+        const visible = !tabAttr || tabAttr === activeTab;
+        tr.classList.toggle('ds-row-hidden', !visible);
+        if (visible) {
+          visibleRows += 1;
+          const chartCell = tr.querySelector('.ds-chart');
+          if (chartCell) visibleCharts.add(chartCell.textContent.trim());
+        }
+      });
+      const countEl = document.getElementById('dsSummaryCount');
+      if (countEl) {
+        countEl.textContent = visibleRows + ' series across ' + visibleCharts.size + ' charts';
+      }
+    }
+
+    // ── Date-range / war-period zoom ──
+    // Mirrors the original Middle East Energy Dashboard's behavior exactly:
+    //  - "All time" shows full data
+    //  - "1Y" shows the last 365 days
+    //  - "War period" zooms to [2026-01-01, today] with a stale label fallback
+    //    for series whose data ends before the war start (2026-02-28).
+    const WAR_START      = "2026-02-28";
+    const WAR_ZOOM_START = "2026-01-01";
+    let currentDateRange = "war";  // default
+
+    function setDateRange(range) {
+      currentDateRange = range;
+      document.querySelectorAll(".dr-btn").forEach(btn => {
+        btn.classList.toggle("dr-active", btn.dataset.range === range);
+      });
+      applyDateRange(range);
+    }
+
+    function applyDateRange(range) {
+      const now = new Date().toISOString().slice(0, 10);
+      const oneYearAgo = new Date(Date.now() - 365 * 86400000).toISOString().slice(0, 10);
+      const instances = window._chartInstances || {};
+
+      // Remove any previous stale labels before re-applying
+      document.querySelectorAll(".chart-stale-label").forEach(el => el.remove());
+
+      Object.entries(instances).forEach(([id, chart]) => {
+        if (!chart) return;
+
+        // Find the latest date across this chart's datasets
+        let latestDate = "";
+        chart.data.datasets.forEach(ds => {
+          ds.data.forEach(pt => {
+            const x = typeof pt === "object" ? pt.x : null;
+            if (x && x > latestDate) latestDate = x;
+          });
+        });
+
+        let xMin, xMax;
+        if (range === "all") {
+          xMin = null; xMax = null;
+        } else if (range === "1y") {
+          xMin = oneYearAgo; xMax = now;
+        } else if (range === "war") {
+          if (latestDate && latestDate >= WAR_START) {
+            xMin = WAR_ZOOM_START; xMax = now;
+          } else {
+            // No war-period coverage — show all time + add stale label
+            xMin = null; xMax = null;
+            const canvas = document.getElementById(id);
+            const container = canvas && canvas.parentElement;
+            if (container && !container.parentElement.querySelector(".chart-stale-label")) {
+              const lastFmt = latestDate
+                ? new Date(latestDate).toLocaleDateString("en-US", { month: "short", year: "numeric" })
+                : "unknown";
+              const label = document.createElement("div");
+              label.className = "chart-stale-label";
+              label.textContent = "Data ends " + lastFmt + " — no war-period coverage";
+              container.parentElement.insertBefore(label, container);
+            }
+          }
+        }
+
+        // Use delete for null to fully clear the constraint (Chart.js doesn't
+        // always treat undefined / null assignments as "no bound").
+        if (xMin === null) { delete chart.options.scales.x.min; } else { chart.options.scales.x.min = xMin; }
+        if (xMax === null) { delete chart.options.scales.x.max; } else { chart.options.scales.x.max = xMax; }
+        chart.update();
+      });
+    }
+
+    // ── Chart.js initialization ──
+    const CHART_CONFIGS = {"chart_FX_(per_USD)_0": {"type": "line", "data": {"datasets": [{"label": "Indonesian Rupiah (per USD)", "data": [{"x": "2026-03-04", "y": 16855.0}, {"x": "2026-03-05", "y": 16909.0}, {"x": "2026-03-06", "y": 16973.0}, {"x": "2026-03-09", "y": 16942.0}, {"x": "2026-03-10", "y": 16866.0}, {"x": "2026-03-11", "y": 16898.0}, {"x": "2026-03-12", "y": 16886.0}, {"x": "2026-03-13", "y": 16900.0}, {"x": "2026-03-16", "y": 16965.0}, {"x": "2026-03-17", "y": 16958.0}, {"x": "2026-03-18", "y": 16994.0}, {"x": "2026-03-19", "y": 16961.0}, {"x": "2026-03-20", "y": 16925.0}, {"x": "2026-03-23", "y": 16896.0}, {"x": "2026-03-24", "y": 16891.0}, {"x": "2026-03-25", "y": 16858.0}, {"x": "2026-03-26", "y": 16917.0}, {"x": "2026-03-27", "y": 16983.0}, {"x": "2026-03-30", "y": 17018.0}, {"x": "2026-03-31", "y": 16965.0}, {"x": "2026-04-01", "y": 16914.0}, {"x": "2026-04-02", "y": 17011.0}, {"x": "2026-04-03", "y": 17040.832923}, {"x": "2026-04-08", "y": 17074.283934}, {"x": "2026-04-09", "y": 17010.537114}, {"x": "2026-04-10", "y": 17083.379014}, {"x": "2026-04-13", "y": 17090.005853}, {"x": "2026-04-14", "y": 17108.868203}, {"x": "2026-04-15", "y": 17143.179005}, {"x": "2026-04-16", "y": 17137.0}, {"x": "2026-04-17", "y": 17184.0}, {"x": "2026-04-19", "y": 17184.0}, {"x": "2026-04-20", "y": 17184.0}, {"x": "2026-04-21", "y": 17137.0}, {"x": "2026-04-22", "y": 17174.0}, {"x": "2026-04-23", "y": 17303.0}, {"x": "2026-04-24", "y": 17273.0}, {"x": "2026-04-25", "y": 17273.0}, {"x": "2026-04-26", "y": 17273.0}], "borderColor": "#60a5fa", "backgroundColor": "#60a5fa20", "borderWidth": 1.6, "pointRadius": 0, "tension": 0.18, "spanGaps": true}, {"label": "Malaysian Ringgit (per USD)", "data": [{"x": "2026-03-04", "y": 3.9415}, {"x": "2026-03-05", "y": 3.943}, {"x": "2026-03-06", "y": 3.946}, {"x": "2026-03-09", "y": 3.963}, {"x": "2026-03-10", "y": 3.925}, {"x": "2026-03-11", "y": 3.9165}, {"x": "2026-03-12", "y": 3.927}, {"x": "2026-03-13", "y": 3.9385}, {"x": "2026-03-16", "y": 3.9305}, {"x": "2026-03-17", "y": 3.918}, {"x": "2026-03-18", "y": 3.9165}, {"x": "2026-03-19", "y": 3.9393}, {"x": "2026-03-20", "y": 3.9395}, {"x": "2026-03-23", "y": 3.9395}, {"x": "2026-03-24", "y": 3.9565}, {"x": "2026-03-25", "y": 3.965}, {"x": "2026-03-26", "y": 3.994}, {"x": "2026-03-27", "y": 4.013}, {"x": "2026-03-30", "y": 4.028}, {"x": "2026-03-31", "y": 4.049}, {"x": "2026-04-01", "y": 4.027}, {"x": "2026-04-02", "y": 4.039}, {"x": "2026-04-03", "y": 4.028406}, {"x": "2026-04-08", "y": 4.031992}, {"x": "2026-04-09", "y": 3.977639}, {"x": "2026-04-10", "y": 3.982674}, {"x": "2026-04-13", "y": 3.965072}, {"x": "2026-04-14", "y": 3.973972}, {"x": "2026-04-15", "y": 3.951419}, {"x": "2026-04-16", "y": 3.9519999027252197}, {"x": "2026-04-17", "y": 3.950000047683716}, {"x": "2026-04-19", "y": 3.950000047683716}, {"x": "2026-04-20", "y": 3.950000047683716}, {"x": "2026-04-21", "y": 3.947999954223633}, {"x": "2026-04-22", "y": 3.950000047683716}, {"x": "2026-04-23", "y": 3.9600000381469727}, {"x": "2026-04-24", "y": 3.9619998931884766}, {"x": "2026-04-25", "y": 3.9619998931884766}, {"x": "2026-04-26", "y": 3.9619998931884766}], "borderColor": "#f0d08a", "backgroundColor": "#f0d08a20", "borderWidth": 1.6, "pointRadius": 0, "tension": 0.18, "spanGaps": true}, {"label": "Philippine Peso (per USD)", "data": [{"x": "2026-03-04", "y": 58.469}, {"x": "2026-03-05", "y": 58.625}, {"x": "2026-03-06", "y": 59.273}, {"x": "2026-03-09", "y": 59.523}, {"x": "2026-03-10", "y": 59.018}, {"x": "2026-03-11", "y": 59.254}, {"x": "2026-03-12", "y": 59.428}, {"x": "2026-03-13", "y": 59.516}, {"x": "2026-03-16", "y": 59.748}, {"x": "2026-03-17", "y": 59.559}, {"x": "2026-03-18", "y": 60.001}, {"x": "2026-03-19", "y": 60.155}, {"x": "2026-03-20", "y": 59.87}, {"x": "2026-03-23", "y": 59.643}, {"x": "2026-03-24", "y": 59.968}, {"x": "2026-03-25", "y": 60.064}, {"x": "2026-03-26", "y": 60.215}, {"x": "2026-03-27", "y": 60.564}, {"x": "2026-03-30", "y": 60.709}, {"x": "2026-03-31", "y": 60.689}, {"x": "2026-04-01", "y": 60.185}, {"x": "2026-04-02", "y": 60.616}, {"x": "2026-04-03", "y": 60.199551}, {"x": "2026-04-08", "y": 60.228688}, {"x": "2026-04-09", "y": 59.529683}, {"x": "2026-04-10", "y": 59.751193}, {"x": "2026-04-13", "y": 59.921721}, {"x": "2026-04-14", "y": 60.131322}, {"x": "2026-04-15", "y": 59.858836}, {"x": "2026-04-16", "y": 59.97800064086914}, {"x": "2026-04-17", "y": 59.54800033569336}, {"x": "2026-04-20", "y": 59.83700180053711}, {"x": "2026-04-21", "y": 59.944000244140625}, {"x": "2026-04-22", "y": 60.10499954223633}, {"x": "2026-04-23", "y": 60.43600082397461}, {"x": "2026-04-24", "y": 60.66999816894531}, {"x": "2026-04-25", "y": 60.66999816894531}, {"x": "2026-04-26", "y": 60.63399887084961}], "borderColor": "#34d399", "backgroundColor": "#34d39920", "borderWidth": 1.6, "pointRadius": 0, "tension": 0.18, "spanGaps": true}, {"label": "Thai Baht (per USD)", "data": [{"x": "2026-03-04", "y": 31.48}, {"x": "2026-03-05", "y": 31.665}, {"x": "2026-03-06", "y": 31.975}, {"x": "2026-03-09", "y": 32.07}, {"x": "2026-03-10", "y": 31.625}, {"x": "2026-03-11", "y": 31.765}, {"x": "2026-03-12", "y": 31.935}, {"x": "2026-03-13", "y": 32.2}, {"x": "2026-03-16", "y": 32.36}, {"x": "2026-03-17", "y": 32.32}, {"x": "2026-03-18", "y": 32.665}, {"x": "2026-03-19", "y": 32.905}, {"x": "2026-03-20", "y": 32.76}, {"x": "2026-03-23", "y": 32.255}, {"x": "2026-03-24", "y": 32.66}, {"x": "2026-03-25", "y": 32.59}, {"x": "2026-03-26", "y": 32.9}, {"x": "2026-03-27", "y": 32.95}, {"x": "2026-03-30", "y": 32.855}, {"x": "2026-03-31", "y": 32.76}, {"x": "2026-04-01", "y": 32.51}, {"x": "2026-04-02", "y": 32.765}, {"x": "2026-04-03", "y": 32.589736}, {"x": "2026-04-08", "y": 32.630041}, {"x": "2026-04-09", "y": 32.018185}, {"x": "2026-04-10", "y": 32.093275}, {"x": "2026-04-13", "y": 32.087762}, {"x": "2026-04-14", "y": 32.158288}, {"x": "2026-04-15", "y": 32.006081}, {"x": "2026-04-16", "y": 31.979999542236328}, {"x": "2026-04-17", "y": 31.889999389648438}, {"x": "2026-04-19", "y": 31.889999389648438}, {"x": "2026-04-20", "y": 32.099998474121094}, {"x": "2026-04-21", "y": 32.0}, {"x": "2026-04-22", "y": 32.209999084472656}, {"x": "2026-04-23", "y": 32.439998626708984}, {"x": "2026-04-24", "y": 32.31999969482422}, {"x": "2026-04-25", "y": 32.310001373291016}, {"x": "2026-04-26", "y": 32.310001373291016}], "borderColor": "#f87171", "backgroundColor": "#f8717120", "borderWidth": 1.6, "pointRadius": 0, "tension": 0.18, "spanGaps": true}, {"label": "Vietnamese Dong (per USD)", "data": [{"x": "2026-03-03", "y": 26200.0}, {"x": "2026-03-04", "y": 26220.0}, {"x": "2026-03-05", "y": 26215.0}, {"x": "2026-03-06", "y": 26240.0}, {"x": "2026-03-09", "y": 26277.5}, {"x": "2026-03-10", "y": 26235.0}, {"x": "2026-03-11", "y": 26250.0}, {"x": "2026-03-12", "y": 26275.0}, {"x": "2026-03-13", "y": 26294.0}, {"x": "2026-03-16", "y": 26290.0}, {"x": "2026-03-17", "y": 26300.0}, {"x": "2026-03-18", "y": 26310.0}, {"x": "2026-03-19", "y": 26290.0}, {"x": "2026-03-20", "y": 26312.0}, {"x": "2026-03-23", "y": 26341.0}, {"x": "2026-03-24", "y": 26357.0}, {"x": "2026-03-25", "y": 26350.0}, {"x": "2026-03-26", "y": 26351.0}, {"x": "2026-03-27", "y": 26337.5}, {"x": "2026-03-30", "y": 26345.0}, {"x": "2026-03-31", "y": 26340.0}, {"x": "2026-04-01", "y": 26335.0}, {"x": "2026-04-02", "y": 26336.0}, {"x": "2026-04-03", "y": 26213.518824}, {"x": "2026-04-08", "y": 26238.899544}, {"x": "2026-04-09", "y": 26263.261789}, {"x": "2026-04-10", "y": 26231.561092}, {"x": "2026-04-13", "y": 26195.109366}, {"x": "2026-04-14", "y": 26246.72388}, {"x": "2026-04-15", "y": 26244.338366}, {"x": "2026-04-16", "y": 26310.0}, {"x": "2026-04-17", "y": 26313.0}, {"x": "2026-04-19", "y": 26313.0}, {"x": "2026-04-20", "y": 26313.0}, {"x": "2026-04-21", "y": 26325.0}, {"x": "2026-04-22", "y": 26320.0}, {"x": "2026-04-23", "y": 26294.0}, {"x": "2026-04-24", "y": 26350.0}, {"x": "2026-04-25", "y": 26350.0}, {"x": "2026-04-26", "y": 26350.0}], "borderColor": "#a78bfa", "backgroundColor": "#a78bfa20", "borderWidth": 1.6, "pointRadius": 0, "tension": 0.18, "spanGaps": true}]}, "options": {"responsive": true, "maintainAspectRatio": false, "interaction": {"mode": "index", "intersect": false}, "plugins": {"legend": {"position": "top", "labels": {"color": "#c9d4e3", "boxWidth": 18, "padding": 10, "font": {"size": 11}}}, "title": {"display": true, "text": "FX (per USD)", "color": "#f0d08a", "font": {"size": 14, "weight": "600"}, "padding": {"top": 4, "bottom": 12}}, "tooltip": {"backgroundColor": "rgba(13, 27, 42, 0.95)", "borderColor": "rgba(194, 154, 81, 0.35)", "borderWidth": 1, "titleColor": "#e0e6ef", "bodyColor": "#c9d4e3", "padding": 10}, "annotation": {"annotations": {"warLine": {"type": "line", "xMin": "2026-02-28", "xMax": "2026-02-28", "borderColor": "rgba(248,113,113,0.55)", "borderWidth": 1.4, "borderDash": [4, 4], "label": {"content": "War", "display": true, "position": "start", "color": "rgba(248,113,113,0.85)", "backgroundColor": "rgba(0,0,0,0)", "font": {"size": 9, "weight": "600"}, "padding": 2, "yAdjust": -4}}}}}, "scales": {"x": {"type": "time", "time": {"unit": "month", "tooltipFormat": "MMM d, yyyy"}, "ticks": {"color": "rgba(224, 230, 239, 0.5)", "font": {"size": 10}, "maxTicksLimit": 8}, "grid": {"color": "rgba(224, 230, 239, 0.06)"}, "min": "2026-01-01"}, "y": {"ticks": {"color": "rgba(224, 230, 239, 0.6)", "font": {"size": 10}}, "grid": {"color": "rgba(224, 230, 239, 0.06)"}}}}}, "chart_10-Year_Sovereign_Yields_(%)_1": {"type": "line", "data": {"datasets": [{"label": "US 10Y Treasury Yield (percent)", "data": [{"x": "2026-02-20", "y": 4.085999965667725}, {"x": "2026-02-23", "y": 4.0289998054504395}, {"x": "2026-02-24", "y": 4.0329999923706055}, {"x": "2026-02-25", "y": 4.047999858856201}, {"x": "2026-02-26", "y": 4.017000198364258}, {"x": "2026-02-27", "y": 3.9619998931884766}, {"x": "2026-03-02", "y": 4.047999858856201}, {"x": "2026-03-03", "y": 4.056000232696533}, {"x": "2026-03-04", "y": 4.079999923706055}, {"x": "2026-03-05", "y": 4.145999908447266}, {"x": "2026-03-06", "y": 4.132999897003174}, {"x": "2026-03-09", "y": 4.136000156402588}, {"x": "2026-03-10", "y": 4.136000156402588}, {"x": "2026-03-11", "y": 4.208000183105469}, {"x": "2026-03-12", "y": 4.2729997634887695}, {"x": "2026-03-13", "y": 4.284999847412109}, {"x": "2026-03-16", "y": 4.21999979019165}, {"x": "2026-03-17", "y": 4.202000141143799}, {"x": "2026-03-18", "y": 4.258999824523926}, {"x": "2026-03-19", "y": 4.281000137329102}, {"x": "2026-03-20", "y": 4.390999794006348}, {"x": "2026-03-23", "y": 4.334000110626221}, {"x": "2026-03-24", "y": 4.392000198364258}, {"x": "2026-03-25", "y": 4.328000068664551}, {"x": "2026-03-26", "y": 4.415999889373779}, {"x": "2026-03-27", "y": 4.440000057220459}, {"x": "2026-03-30", "y": 4.3420000076293945}, {"x": "2026-03-31", "y": 4.310999870300293}, {"x": "2026-04-01", "y": 4.318999767303467}, {"x": "2026-04-02", "y": 4.313000202178955}, {"x": "2026-04-06", "y": 4.335000038146973}, {"x": "2026-04-07", "y": 4.3429999351501465}, {"x": "2026-04-08", "y": 4.290999889373779}, {"x": "2026-04-09", "y": 4.293000221252441}, {"x": "2026-04-10", "y": 4.316999912261963}, {"x": "2026-04-13", "y": 4.296999931335449}, {"x": "2026-04-14", "y": 4.25600004196167}, {"x": "2026-04-15", "y": 4.2820000648498535}, {"x": "2026-04-16", "y": 4.309000015258789}, {"x": "2026-04-17", "y": 4.245999813079834}, {"x": "2026-04-20", "y": 4.25}, {"x": "2026-04-21", "y": 4.291999816894531}, {"x": "2026-04-22", "y": 4.293999671936035}, {"x": "2026-04-23", "y": 4.322999954223633}, {"x": "2026-04-24", "y": 4.309999942779541}], "borderColor": "#60a5fa", "backgroundColor": "#60a5fa20", "borderWidth": 1.6, "pointRadius": 0, "tension": 0.18, "spanGaps": true}, {"label": "Indonesia 10Y Govt Bond Yield (percent)", "data": [{"x": "2026-02-27", "y": 6.411}, {"x": "2026-03-02", "y": 6.478}, {"x": "2026-03-03", "y": 6.552}, {"x": "2026-03-04", "y": 6.636}, {"x": "2026-03-05", "y": 6.588}, {"x": "2026-03-06", "y": 6.588}, {"x": "2026-03-09", "y": 6.741}, {"x": "2026-03-10", "y": 6.692}, {"x": "2026-03-11", "y": 6.692}, {"x": "2026-03-12", "y": 6.776}, {"x": "2026-03-13", "y": 6.818}, {"x": "2026-03-16", "y": 6.932}, {"x": "2026-03-17", "y": 6.847}, {"x": "2026-03-25", "y": 6.847}, {"x": "2026-03-26", "y": 6.848}, {"x": "2026-03-27", "y": 6.848}, {"x": "2026-03-30", "y": 6.848}, {"x": "2026-03-31", "y": 6.884}, {"x": "2026-04-01", "y": 6.673}, {"x": "2026-04-02", "y": 6.624}, {"x": "2026-04-03", "y": 6.89}, {"x": "2026-04-06", "y": 6.765}, {"x": "2026-04-07", "y": 6.772}, {"x": "2026-04-08", "y": 6.764}, {"x": "2026-04-09", "y": 6.685}, {"x": "2026-04-10", "y": 6.707}, {"x": "2026-04-13", "y": 6.664}, {"x": "2026-04-14", "y": 6.679}, {"x": "2026-04-15", "y": 6.66}, {"x": "2026-04-16", "y": 6.667}, {"x": "2026-04-17", "y": 6.652}, {"x": "2026-04-18", "y": 6.652}, {"x": "2026-04-19", "y": 6.652}, {"x": "2026-04-20", "y": 6.653}], "borderColor": "#f0d08a", "backgroundColor": "#f0d08a20", "borderWidth": 1.6, "pointRadius": 0, "tension": 0.18, "spanGaps": true}, {"label": "Malaysia 10Y Govt Bond Yield (percent)", "data": [{"x": "2026-03-03", "y": 3.53}, {"x": "2026-03-04", "y": 3.548}, {"x": "2026-03-05", "y": 3.548}, {"x": "2026-03-06", "y": 3.559}, {"x": "2026-03-08", "y": 3.556}, {"x": "2026-03-09", "y": 3.598}, {"x": "2026-03-10", "y": 3.55}, {"x": "2026-03-11", "y": 3.556}, {"x": "2026-03-12", "y": 3.556}, {"x": "2026-03-13", "y": 3.572}, {"x": "2026-03-16", "y": 3.57}, {"x": "2026-03-17", "y": 3.566}, {"x": "2026-03-18", "y": 3.549}, {"x": "2026-03-19", "y": 3.564}, {"x": "2026-03-23", "y": 3.565}, {"x": "2026-03-24", "y": 3.588}, {"x": "2026-03-25", "y": 3.579}, {"x": "2026-03-26", "y": 3.611}, {"x": "2026-03-27", "y": 3.637}, {"x": "2026-03-30", "y": 3.645}, {"x": "2026-03-31", "y": 3.63}, {"x": "2026-04-01", "y": 3.605}, {"x": "2026-04-02", "y": 3.624}, {"x": "2026-04-03", "y": 3.635}, {"x": "2026-04-06", "y": 3.621}, {"x": "2026-04-07", "y": 3.631}, {"x": "2026-04-08", "y": 3.633}, {"x": "2026-04-09", "y": 3.589}, {"x": "2026-04-10", "y": 3.604}, {"x": "2026-04-13", "y": 3.598}, {"x": "2026-04-14", "y": 3.603}, {"x": "2026-04-15", "y": 3.581}, {"x": "2026-04-16", "y": 3.58}, {"x": "2026-04-17", "y": 3.574}, {"x": "2026-04-18", "y": 3.574}, {"x": "2026-04-19", "y": 3.574}, {"x": "2026-04-20", "y": 3.573}], "borderColor": "#34d399", "backgroundColor": "#34d39920", "borderWidth": 1.6, "pointRadius": 0, "tension": 0.18, "spanGaps": true}, {"label": "Philippines 10Y Govt Bond Yield (percent)", "data": [{"x": "2026-03-03", "y": 6.043}, {"x": "2026-03-04", "y": 6.043}, {"x": "2026-03-05", "y": 6.146}, {"x": "2026-03-06", "y": 6.311}, {"x": "2026-03-09", "y": 6.311}, {"x": "2026-03-10", "y": 6.607}, {"x": "2026-03-11", "y": 6.607}, {"x": "2026-03-12", "y": 6.602}, {"x": "2026-03-13", "y": 6.613}, {"x": "2026-03-16", "y": 6.613}, {"x": "2026-03-17", "y": 6.728}, {"x": "2026-03-18", "y": 6.748}, {"x": "2026-03-19", "y": 6.748}, {"x": "2026-03-20", "y": 6.822}, {"x": "2026-03-23", "y": 6.989}, {"x": "2026-03-24", "y": 6.989}, {"x": "2026-03-25", "y": 7.113}, {"x": "2026-03-26", "y": 7.022}, {"x": "2026-03-27", "y": 6.929}, {"x": "2026-03-30", "y": 6.929}, {"x": "2026-03-31", "y": 6.96}, {"x": "2026-04-01", "y": 6.79}, {"x": "2026-04-02", "y": 6.79}, {"x": "2026-04-03", "y": 6.931}, {"x": "2026-04-06", "y": 6.831}, {"x": "2026-04-07", "y": 6.766}, {"x": "2026-04-08", "y": 6.837}, {"x": "2026-04-09", "y": 6.608}, {"x": "2026-04-10", "y": 6.608}, {"x": "2026-04-13", "y": 6.598}, {"x": "2026-04-14", "y": 6.736}, {"x": "2026-04-15", "y": 6.607}, {"x": "2026-04-16", "y": 6.613}, {"x": "2026-04-17", "y": 6.644}, {"x": "2026-04-18", "y": 6.644}, {"x": "2026-04-19", "y": 6.644}, {"x": "2026-04-20", "y": 6.66}], "borderColor": "#f87171", "backgroundColor": "#f8717120", "borderWidth": 1.6, "pointRadius": 0, "tension": 0.18, "spanGaps": true}, {"label": "Thailand 10Y Govt Bond Yield (percent)", "data": [{"x": "2026-03-03", "y": 1.744}, {"x": "2026-03-04", "y": 1.894}, {"x": "2026-03-05", "y": 1.867}, {"x": "2026-03-06", "y": 1.892}, {"x": "2026-03-09", "y": 2.027}, {"x": "2026-03-10", "y": 1.921}, {"x": "2026-03-11", "y": 1.928}, {"x": "2026-03-12", "y": 1.974}, {"x": "2026-03-13", "y": 2.037}, {"x": "2026-03-16", "y": 2.121}, {"x": "2026-03-17", "y": 2.106}, {"x": "2026-03-18", "y": 2.05}, {"x": "2026-03-19", "y": 2.092}, {"x": "2026-03-20", "y": 2.094}, {"x": "2026-03-23", "y": 2.236}, {"x": "2026-03-24", "y": 2.232}, {"x": "2026-03-25", "y": 2.181}, {"x": "2026-03-26", "y": 2.226}, {"x": "2026-03-27", "y": 2.319}, {"x": "2026-03-30", "y": 2.286}, {"x": "2026-03-31", "y": 2.197}, {"x": "2026-04-01", "y": 2.153}, {"x": "2026-04-02", "y": 2.181}, {"x": "2026-04-03", "y": 2.208}, {"x": "2026-04-06", "y": 2.13}, {"x": "2026-04-07", "y": 2.13}, {"x": "2026-04-08", "y": 2.123}, {"x": "2026-04-09", "y": 2.021}, {"x": "2026-04-10", "y": 2.015}, {"x": "2026-04-13", "y": 2.048}, {"x": "2026-04-14", "y": 2.048}, {"x": "2026-04-15", "y": 2.048}, {"x": "2026-04-16", "y": 2.048}, {"x": "2026-04-17", "y": 1.999}, {"x": "2026-04-18", "y": 1.999}, {"x": "2026-04-19", "y": 1.999}, {"x": "2026-04-20", "y": 2.029}], "borderColor": "#a78bfa", "backgroundColor": "#a78bfa20", "borderWidth": 1.6, "pointRadius": 0, "tension": 0.18, "spanGaps": true}]}, "options": {"responsive": true, "maintainAspectRatio": false, "interaction": {"mode": "index", "intersect": false}, "plugins": {"legend": {"position": "top", "labels": {"color": "#c9d4e3", "boxWidth": 18, "padding": 10, "font": {"size": 11}}}, "title": {"display": true, "text": "10-Year Sovereign Yields (%)", "color": "#f0d08a", "font": {"size": 14, "weight": "600"}, "padding": {"top": 4, "bottom": 12}}, "tooltip": {"backgroundColor": "rgba(13, 27, 42, 0.95)", "borderColor": "rgba(194, 154, 81, 0.35)", "borderWidth": 1, "titleColor": "#e0e6ef", "bodyColor": "#c9d4e3", "padding": 10}, "annotation": {"annotations": {"warLine": {"type": "line", "xMin": "2026-02-28", "xMax": "2026-02-28", "borderColor": "rgba(248,113,113,0.55)", "borderWidth": 1.4, "borderDash": [4, 4], "label": {"content": "War", "display": true, "position": "start", "color": "rgba(248,113,113,0.85)", "backgroundColor": "rgba(0,0,0,0)", "font": {"size": 9, "weight": "600"}, "padding": 2, "yAdjust": -4}}}}}, "scales": {"x": {"type": "time", "time": {"unit": "month", "tooltipFormat": "MMM d, yyyy"}, "ticks": {"color": "rgba(224, 230, 239, 0.5)", "font": {"size": 10}, "maxTicksLimit": 8}, "grid": {"color": "rgba(224, 230, 239, 0.06)"}, "min": "2026-01-01"}, "y": {"ticks": {"color": "rgba(224, 230, 239, 0.6)", "font": {"size": 10}}, "grid": {"color": "rgba(224, 230, 239, 0.06)"}}}}}, "chart_Commodities_usd_bbl_2": {"type": "line", "data": {"datasets": [{"label": "Brent Crude Oil (ICE Futures) (USD/bbl)", "data": [{"x": "2026-02-27", "y": 72.4800033569336}, {"x": "2026-03-02", "y": 77.73999786376953}, {"x": "2026-03-03", "y": 81.4000015258789}, {"x": "2026-03-04", "y": 81.4000015258789}, {"x": "2026-03-05", "y": 85.41000366210938}, {"x": "2026-03-06", "y": 92.69000244140625}, {"x": "2026-03-09", "y": 98.95999908447266}, {"x": "2026-03-10", "y": 87.80000305175781}, {"x": "2026-03-11", "y": 91.9800033569336}, {"x": "2026-03-12", "y": 100.45999908447266}, {"x": "2026-03-13", "y": 103.13999938964844}, {"x": "2026-03-16", "y": 100.20999908447266}, {"x": "2026-03-17", "y": 103.41999816894531}, {"x": "2026-03-18", "y": 107.37999725341797}, {"x": "2026-03-19", "y": 108.6500015258789}, {"x": "2026-03-20", "y": 112.19000244140625}, {"x": "2026-03-23", "y": 99.94000244140625}, {"x": "2026-03-24", "y": 104.48999786376953}, {"x": "2026-03-25", "y": 102.22000122070312}, {"x": "2026-03-26", "y": 108.01000213623047}, {"x": "2026-03-27", "y": 112.56999969482422}, {"x": "2026-03-30", "y": 112.77999877929688}, {"x": "2026-03-31", "y": 118.3499984741211}, {"x": "2026-04-01", "y": 101.16000366210938}, {"x": "2026-04-02", "y": 109.02999877929688}, {"x": "2026-04-06", "y": 107.6500015258789}, {"x": "2026-04-07", "y": 108.76000213623047}, {"x": "2026-04-08", "y": 94.45999908447266}, {"x": "2026-04-09", "y": 97.7699966430664}, {"x": "2026-04-10", "y": 96.83999633789062}, {"x": "2026-04-13", "y": 102.72000122070312}, {"x": "2026-04-14", "y": 95.13999938964844}, {"x": "2026-04-15", "y": 94.93000030517578}, {"x": "2026-04-16", "y": 98.01000213623047}, {"x": "2026-04-17", "y": 90.37999725341797}, {"x": "2026-04-20", "y": 94.27999877929688}, {"x": "2026-04-21", "y": 93.86000061035156}, {"x": "2026-04-22", "y": 101.8499984741211}, {"x": "2026-04-23", "y": 106.47000122070312}, {"x": "2026-04-24", "y": 99.12999725341797}], "borderColor": "#60a5fa", "backgroundColor": "#60a5fa20", "borderWidth": 1.6, "pointRadius": 0, "tension": 0.18, "spanGaps": true}]}, "options": {"responsive": true, "maintainAspectRatio": false, "interaction": {"mode": "index", "intersect": false}, "plugins": {"legend": {"position": "top", "labels": {"color": "#c9d4e3", "boxWidth": 18, "padding": 10, "font": {"size": 11}}}, "title": {"display": true, "text": "Commodities \u2014 USD/bbl", "color": "#f0d08a", "font": {"size": 14, "weight": "600"}, "padding": {"top": 4, "bottom": 12}}, "tooltip": {"backgroundColor": "rgba(13, 27, 42, 0.95)", "borderColor": "rgba(194, 154, 81, 0.35)", "borderWidth": 1, "titleColor": "#e0e6ef", "bodyColor": "#c9d4e3", "padding": 10}, "annotation": {"annotations": {"warLine": {"type": "line", "xMin": "2026-02-28", "xMax": "2026-02-28", "borderColor": "rgba(248,113,113,0.55)", "borderWidth": 1.4, "borderDash": [4, 4], "label": {"content": "War", "display": true, "position": "start", "color": "rgba(248,113,113,0.85)", "backgroundColor": "rgba(0,0,0,0)", "font": {"size": 9, "weight": "600"}, "padding": 2, "yAdjust": -4}}}}}, "scales": {"x": {"type": "time", "time": {"unit": "month", "tooltipFormat": "MMM d, yyyy"}, "ticks": {"color": "rgba(224, 230, 239, 0.5)", "font": {"size": 10}, "maxTicksLimit": 8}, "grid": {"color": "rgba(224, 230, 239, 0.06)"}, "min": "2026-01-01"}, "y": {"ticks": {"color": "rgba(224, 230, 239, 0.6)", "font": {"size": 10}}, "grid": {"color": "rgba(224, 230, 239, 0.06)"}}}}}, "chart_Commodities_usd_mmbtu_3": {"type": "line", "data": {"datasets": [{"label": "JKM LNG Futures (Platts) (USD/MMBtu)", "data": [{"x": "2026-03-03", "y": 15.77}, {"x": "2026-03-04", "y": 15.105}, {"x": "2026-03-05", "y": 15.495}, {"x": "2026-03-06", "y": 15.71}, {"x": "2026-03-09", "y": 16.23}, {"x": "2026-03-10", "y": 15.92}, {"x": "2026-03-11", "y": 15.98}, {"x": "2026-03-12", "y": 16.09}, {"x": "2026-03-13", "y": 16.185}, {"x": "2026-03-16", "y": 19.275}, {"x": "2026-03-17", "y": 19.41}, {"x": "2026-03-18", "y": 20.175}, {"x": "2026-03-19", "y": 22.35}, {"x": "2026-03-20", "y": 21.705}, {"x": "2026-03-23", "y": 21.0}, {"x": "2026-03-24", "y": 20.525}, {"x": "2026-03-25", "y": 19.99}, {"x": "2026-03-26", "y": 20.495}, {"x": "2026-03-27", "y": 20.395}, {"x": "2026-03-30", "y": 20.53}, {"x": "2026-03-31", "y": 20.13}, {"x": "2026-04-01", "y": 19.83}, {"x": "2026-04-02", "y": 19.965}, {"x": "2026-04-03", "y": 19.965}, {"x": "2026-04-10", "y": 19.420000076293945}, {"x": "2026-04-14", "y": 19.35}, {"x": "2026-04-15", "y": 15.78}, {"x": "2026-04-16", "y": 16.13}, {"x": "2026-04-17", "y": 15.0}, {"x": "2026-04-18", "y": 15.0}, {"x": "2026-04-19", "y": 15.0}, {"x": "2026-04-20", "y": 15.0}], "borderColor": "#60a5fa", "backgroundColor": "#60a5fa20", "borderWidth": 1.6, "pointRadius": 0, "tension": 0.18, "spanGaps": true}]}, "options": {"responsive": true, "maintainAspectRatio": false, "interaction": {"mode": "index", "intersect": false}, "plugins": {"legend": {"position": "top", "labels": {"color": "#c9d4e3", "boxWidth": 18, "padding": 10, "font": {"size": 11}}}, "title": {"display": true, "text": "Commodities \u2014 USD/MMBtu", "color": "#f0d08a", "font": {"size": 14, "weight": "600"}, "padding": {"top": 4, "bottom": 12}}, "tooltip": {"backgroundColor": "rgba(13, 27, 42, 0.95)", "borderColor": "rgba(194, 154, 81, 0.35)", "borderWidth": 1, "titleColor": "#e0e6ef", "bodyColor": "#c9d4e3", "padding": 10}, "annotation": {"annotations": {"warLine": {"type": "line", "xMin": "2026-02-28", "xMax": "2026-02-28", "borderColor": "rgba(248,113,113,0.55)", "borderWidth": 1.4, "borderDash": [4, 4], "label": {"content": "War", "display": true, "position": "start", "color": "rgba(248,113,113,0.85)", "backgroundColor": "rgba(0,0,0,0)", "font": {"size": 9, "weight": "600"}, "padding": 2, "yAdjust": -4}}}}}, "scales": {"x": {"type": "time", "time": {"unit": "month", "tooltipFormat": "MMM d, yyyy"}, "ticks": {"color": "rgba(224, 230, 239, 0.5)", "font": {"size": 10}, "maxTicksLimit": 8}, "grid": {"color": "rgba(224, 230, 239, 0.06)"}, "min": "2026-01-01"}, "y": {"ticks": {"color": "rgba(224, 230, 239, 0.6)", "font": {"size": 10}}, "grid": {"color": "rgba(224, 230, 239, 0.06)"}}}}}, "chart_Commodities_usd_tonne_4": {"type": "line", "data": {"datasets": [{"label": "Thermal Coal (Newcastle FOB) (USD/tonne)", "data": [{"x": "2026-03-03", "y": 135.0}, {"x": "2026-03-04", "y": 131.65}, {"x": "2026-03-05", "y": 134.25}, {"x": "2026-03-06", "y": 133.8}, {"x": "2026-03-09", "y": 137.65}, {"x": "2026-03-10", "y": 131.55}, {"x": "2026-03-11", "y": 133.1}, {"x": "2026-03-12", "y": 135.0}, {"x": "2026-03-13", "y": 134.8}, {"x": "2026-03-16", "y": 132.3}, {"x": "2026-03-17", "y": 131.1}, {"x": "2026-03-18", "y": 132.8}, {"x": "2026-03-19", "y": 135.45}, {"x": "2026-03-20", "y": 135.35}, {"x": "2026-03-23", "y": 135.25}, {"x": "2026-03-24", "y": 136.5}, {"x": "2026-03-25", "y": 133.05}, {"x": "2026-03-26", "y": 135.1}, {"x": "2026-03-27", "y": 135.6}, {"x": "2026-03-30", "y": 144.25}, {"x": "2026-03-31", "y": 142.45}, {"x": "2026-04-01", "y": 137.2}, {"x": "2026-04-02", "y": 139.8}, {"x": "2026-04-03", "y": 139.8}, {"x": "2026-04-13", "y": 134.9}, {"x": "2026-04-14", "y": 134.9}, {"x": "2026-04-15", "y": 134.9}, {"x": "2026-04-16", "y": 133.75}, {"x": "2026-04-17", "y": 133.75}, {"x": "2026-04-18", "y": 132.3}, {"x": "2026-04-19", "y": 132.3}, {"x": "2026-04-20", "y": 132.3}], "borderColor": "#60a5fa", "backgroundColor": "#60a5fa20", "borderWidth": 1.6, "pointRadius": 0, "tension": 0.18, "spanGaps": true}, {"label": "Nickel Futures (LME) (USD/tonne)", "data": [{"x": "2026-03-03", "y": 17085.75}, {"x": "2026-03-04", "y": 17593.38}, {"x": "2026-03-05", "y": 17168.38}, {"x": "2026-03-06", "y": 17485.63}, {"x": "2026-03-09", "y": 17385.25}, {"x": "2026-03-10", "y": 17587.63}, {"x": "2026-03-11", "y": 17661.63}, {"x": "2026-03-12", "y": 17716.63}, {"x": "2026-03-13", "y": 17236.0}, {"x": "2026-03-16", "y": 17437.25}, {"x": "2026-03-17", "y": 17236.88}, {"x": "2026-03-18", "y": 17154.13}, {"x": "2026-03-19", "y": 16947.63}, {"x": "2026-03-20", "y": 16993.88}, {"x": "2026-03-23", "y": 17101.13}, {"x": "2026-03-24", "y": 16928.88}, {"x": "2026-03-25", "y": 17390.13}, {"x": "2026-03-26", "y": 17225.63}, {"x": "2026-03-27", "y": 17195.88}, {"x": "2026-03-30", "y": 17233.0}, {"x": "2026-03-31", "y": 17098.0}, {"x": "2026-04-01", "y": 17219.25}, {"x": "2026-04-02", "y": 17059.0}, {"x": "2026-04-03", "y": 17059.0}, {"x": "2026-04-13", "y": 17547.75}, {"x": "2026-04-14", "y": 18185.0}, {"x": "2026-04-15", "y": 18127.25}, {"x": "2026-04-16", "y": 18259.25}, {"x": "2026-04-17", "y": 18025.0}, {"x": "2026-04-18", "y": 18025.0}, {"x": "2026-04-19", "y": 18025.0}, {"x": "2026-04-20", "y": 18118.5}], "borderColor": "#f0d08a", "backgroundColor": "#f0d08a20", "borderWidth": 1.6, "pointRadius": 0, "tension": 0.18, "spanGaps": true}]}, "options": {"responsive": true, "maintainAspectRatio": false, "interaction": {"mode": "index", "intersect": false}, "plugins": {"legend": {"position": "top", "labels": {"color": "#c9d4e3", "boxWidth": 18, "padding": 10, "font": {"size": 11}}}, "title": {"display": true, "text": "Commodities \u2014 USD/tonne", "color": "#f0d08a", "font": {"size": 14, "weight": "600"}, "padding": {"top": 4, "bottom": 12}}, "tooltip": {"backgroundColor": "rgba(13, 27, 42, 0.95)", "borderColor": "rgba(194, 154, 81, 0.35)", "borderWidth": 1, "titleColor": "#e0e6ef", "bodyColor": "#c9d4e3", "padding": 10}, "annotation": {"annotations": {"warLine": {"type": "line", "xMin": "2026-02-28", "xMax": "2026-02-28", "borderColor": "rgba(248,113,113,0.55)", "borderWidth": 1.4, "borderDash": [4, 4], "label": {"content": "War", "display": true, "position": "start", "color": "rgba(248,113,113,0.85)", "backgroundColor": "rgba(0,0,0,0)", "font": {"size": 9, "weight": "600"}, "padding": 2, "yAdjust": -4}}}}}, "scales": {"x": {"type": "time", "time": {"unit": "month", "tooltipFormat": "MMM d, yyyy"}, "ticks": {"color": "rgba(224, 230, 239, 0.5)", "font": {"size": 10}, "maxTicksLimit": 8}, "grid": {"color": "rgba(224, 230, 239, 0.06)"}, "min": "2026-01-01"}, "y": {"ticks": {"color": "rgba(224, 230, 239, 0.6)", "font": {"size": 10}}, "grid": {"color": "rgba(224, 230, 239, 0.06)"}}}}}, "chart_Commodities_myr_tonne_5": {"type": "line", "data": {"datasets": [{"label": "Crude Palm Oil (Bursa Malaysia FCPO) (MYR/tonne)", "data": [{"x": "2026-02-25", "y": 4005.0}, {"x": "2026-02-26", "y": 4042.0}, {"x": "2026-03-02", "y": 4186.0}, {"x": "2026-03-03", "y": 4179.0}, {"x": "2026-03-04", "y": 4207.0}, {"x": "2026-03-05", "y": 4367.0}, {"x": "2026-03-09", "y": 4428.0}, {"x": "2026-03-10", "y": 4499.0}, {"x": "2026-03-11", "y": 4541.0}, {"x": "2026-03-12", "y": 4572.0}, {"x": "2026-03-16", "y": 4581.0}, {"x": "2026-03-17", "y": 4528.0}, {"x": "2026-03-18", "y": 4611.0}, {"x": "2026-03-24", "y": 4496.0}, {"x": "2026-03-25", "y": 4583.0}, {"x": "2026-03-26", "y": 4631.0}, {"x": "2026-03-30", "y": 4828.0}, {"x": "2026-03-31", "y": 4769.0}, {"x": "2026-04-01", "y": 4791.0}, {"x": "2026-04-02", "y": 4805.0}, {"x": "2026-04-03", "y": 4805.0}, {"x": "2026-04-13", "y": 4538.0}, {"x": "2026-04-14", "y": 4530.0}, {"x": "2026-04-15", "y": 4427.0}, {"x": "2026-04-16", "y": 4466.0}, {"x": "2026-04-17", "y": 4515.0}, {"x": "2026-04-18", "y": 4450.0}, {"x": "2026-04-19", "y": 4450.0}, {"x": "2026-04-20", "y": 4450.0}], "borderColor": "#60a5fa", "backgroundColor": "#60a5fa20", "borderWidth": 1.6, "pointRadius": 0, "tension": 0.18, "spanGaps": true}]}, "options": {"responsive": true, "maintainAspectRatio": false, "interaction": {"mode": "index", "intersect": false}, "plugins": {"legend": {"position": "top", "labels": {"color": "#c9d4e3", "boxWidth": 18, "padding": 10, "font": {"size": 11}}}, "title": {"display": true, "text": "Commodities \u2014 MYR/tonne", "color": "#f0d08a", "font": {"size": 14, "weight": "600"}, "padding": {"top": 4, "bottom": 12}}, "tooltip": {"backgroundColor": "rgba(13, 27, 42, 0.95)", "borderColor": "rgba(194, 154, 81, 0.35)", "borderWidth": 1, "titleColor": "#e0e6ef", "bodyColor": "#c9d4e3", "padding": 10}, "annotation": {"annotations": {"warLine": {"type": "line", "xMin": "2026-02-28", "xMax": "2026-02-28", "borderColor": "rgba(248,113,113,0.55)", "borderWidth": 1.4, "borderDash": [4, 4], "label": {"content": "War", "display": true, "position": "start", "color": "rgba(248,113,113,0.85)", "backgroundColor": "rgba(0,0,0,0)", "font": {"size": 9, "weight": "600"}, "padding": 2, "yAdjust": -4}}}}}, "scales": {"x": {"type": "time", "time": {"unit": "month", "tooltipFormat": "MMM d, yyyy"}, "ticks": {"color": "rgba(224, 230, 239, 0.5)", "font": {"size": 10}, "maxTicksLimit": 8}, "grid": {"color": "rgba(224, 230, 239, 0.06)"}, "min": "2026-01-01"}, "y": {"ticks": {"color": "rgba(224, 230, 239, 0.6)", "font": {"size": 10}}, "grid": {"color": "rgba(224, 230, 239, 0.06)"}}}}}, "chart_Commodities_usc_kg_6": {"type": "line", "data": {"datasets": [{"label": "Rubber TSR20 Futures (SGX) (USc/kg)", "data": [{"x": "2026-02-24", "y": 205.2}, {"x": "2026-02-25", "y": 204.5}, {"x": "2026-02-26", "y": 204.8}, {"x": "2026-03-06", "y": 196.9}, {"x": "2026-03-09", "y": 198.2}, {"x": "2026-03-10", "y": 198.8}, {"x": "2026-03-11", "y": 198.1}, {"x": "2026-03-12", "y": 195.4}, {"x": "2026-03-13", "y": 196.1}, {"x": "2026-03-16", "y": 195.6}, {"x": "2026-03-17", "y": 192.2}, {"x": "2026-03-18", "y": 190.3}, {"x": "2026-03-19", "y": 189.3}, {"x": "2026-03-20", "y": 190.9}, {"x": "2026-03-23", "y": 193.6}, {"x": "2026-03-24", "y": 196.8}, {"x": "2026-03-25", "y": 197.8}, {"x": "2026-03-26", "y": 200.3}, {"x": "2026-03-27", "y": 200.6}, {"x": "2026-03-30", "y": 203.4}, {"x": "2026-04-03", "y": 203.4}, {"x": "2026-04-13", "y": 202.6}, {"x": "2026-04-14", "y": 203.4}, {"x": "2026-04-15", "y": 201.7}, {"x": "2026-04-16", "y": 203.6}, {"x": "2026-04-17", "y": 201.3}, {"x": "2026-04-18", "y": 201.4}, {"x": "2026-04-19", "y": 201.4}, {"x": "2026-04-20", "y": 202.0}], "borderColor": "#60a5fa", "backgroundColor": "#60a5fa20", "borderWidth": 1.6, "pointRadius": 0, "tension": 0.18, "spanGaps": true}]}, "options": {"responsive": true, "maintainAspectRatio": false, "interaction": {"mode": "index", "intersect": false}, "plugins": {"legend": {"position": "top", "labels": {"color": "#c9d4e3", "boxWidth": 18, "padding": 10, "font": {"size": 11}}}, "title": {"display": true, "text": "Commodities \u2014 USc/kg", "color": "#f0d08a", "font": {"size": 14, "weight": "600"}, "padding": {"top": 4, "bottom": 12}}, "tooltip": {"backgroundColor": "rgba(13, 27, 42, 0.95)", "borderColor": "rgba(194, 154, 81, 0.35)", "borderWidth": 1, "titleColor": "#e0e6ef", "bodyColor": "#c9d4e3", "padding": 10}, "annotation": {"annotations": {"warLine": {"type": "line", "xMin": "2026-02-28", "xMax": "2026-02-28", "borderColor": "rgba(248,113,113,0.55)", "borderWidth": 1.4, "borderDash": [4, 4], "label": {"content": "War", "display": true, "position": "start", "color": "rgba(248,113,113,0.85)", "backgroundColor": "rgba(0,0,0,0)", "font": {"size": 9, "weight": "600"}, "padding": 2, "yAdjust": -4}}}}}, "scales": {"x": {"type": "time", "time": {"unit": "month", "tooltipFormat": "MMM d, yyyy"}, "ticks": {"color": "rgba(224, 230, 239, 0.5)", "font": {"size": 10}, "maxTicksLimit": 8}, "grid": {"color": "rgba(224, 230, 239, 0.06)"}, "min": "2026-01-01"}, "y": {"ticks": {"color": "rgba(224, 230, 239, 0.6)", "font": {"size": 10}}, "grid": {"color": "rgba(224, 230, 239, 0.06)"}}}}}, "chart_Commodities_usd_oz_7": {"type": "line", "data": {"datasets": [{"label": "Gold Futures (COMEX) (USD/oz)", "data": [{"x": "2026-02-27", "y": 5230.5}, {"x": "2026-03-02", "y": 5294.39990234375}, {"x": "2026-03-03", "y": 5107.39990234375}, {"x": "2026-03-04", "y": 5120.2001953125}, {"x": "2026-03-05", "y": 5065.2998046875}, {"x": "2026-03-06", "y": 5146.10009765625}, {"x": "2026-03-09", "y": 5091.5}, {"x": "2026-03-10", "y": 5229.7001953125}, {"x": "2026-03-11", "y": 5167.39990234375}, {"x": "2026-03-12", "y": 5115.7998046875}, {"x": "2026-03-13", "y": 5052.5}, {"x": "2026-03-16", "y": 4994.0}, {"x": "2026-03-17", "y": 5001.0}, {"x": "2026-03-18", "y": 4889.89990234375}, {"x": "2026-03-19", "y": 4600.7001953125}, {"x": "2026-03-20", "y": 4570.39990234375}, {"x": "2026-03-23", "y": 4404.10009765625}, {"x": "2026-03-24", "y": 4399.2998046875}, {"x": "2026-03-25", "y": 4549.7998046875}, {"x": "2026-03-26", "y": 4375.5}, {"x": "2026-03-27", "y": 4492.0}, {"x": "2026-03-30", "y": 4526.0}, {"x": "2026-03-31", "y": 4647.60009765625}, {"x": "2026-04-01", "y": 4783.2001953125}, {"x": "2026-04-02", "y": 4651.5}, {"x": "2026-04-06", "y": 4727.2001953125}, {"x": "2026-04-07", "y": 4692.10009765625}, {"x": "2026-04-08", "y": 4813.2001953125}, {"x": "2026-04-09", "y": 4753.5}, {"x": "2026-04-10", "y": 4773.2001953125}, {"x": "2026-04-13", "y": 4735.60009765625}, {"x": "2026-04-14", "y": 4864.5}, {"x": "2026-04-15", "y": 4813.89990234375}, {"x": "2026-04-16", "y": 4810.89990234375}, {"x": "2026-04-17", "y": 4857.60009765625}, {"x": "2026-04-20", "y": 4841.0}, {"x": "2026-04-21", "y": 4738.5}, {"x": "2026-04-22", "y": 4758.2998046875}, {"x": "2026-04-23", "y": 4708.60009765625}, {"x": "2026-04-24", "y": 4740.89990234375}], "borderColor": "#60a5fa", "backgroundColor": "#60a5fa20", "borderWidth": 1.6, "pointRadius": 0, "tension": 0.18, "spanGaps": true}]}, "options": {"responsive": true, "maintainAspectRatio": false, "interaction": {"mode": "index", "intersect": false}, "plugins": {"legend": {"position": "top", "labels": {"color": "#c9d4e3", "boxWidth": 18, "padding": 10, "font": {"size": 11}}}, "title": {"display": true, "text": "Commodities \u2014 USD/oz", "color": "#f0d08a", "font": {"size": 14, "weight": "600"}, "padding": {"top": 4, "bottom": 12}}, "tooltip": {"backgroundColor": "rgba(13, 27, 42, 0.95)", "borderColor": "rgba(194, 154, 81, 0.35)", "borderWidth": 1, "titleColor": "#e0e6ef", "bodyColor": "#c9d4e3", "padding": 10}, "annotation": {"annotations": {"warLine": {"type": "line", "xMin": "2026-02-28", "xMax": "2026-02-28", "borderColor": "rgba(248,113,113,0.55)", "borderWidth": 1.4, "borderDash": [4, 4], "label": {"content": "War", "display": true, "position": "start", "color": "rgba(248,113,113,0.85)", "backgroundColor": "rgba(0,0,0,0)", "font": {"size": 9, "weight": "600"}, "padding": 2, "yAdjust": -4}}}}}, "scales": {"x": {"type": "time", "time": {"unit": "month", "tooltipFormat": "MMM d, yyyy"}, "ticks": {"color": "rgba(224, 230, 239, 0.5)", "font": {"size": 10}, "maxTicksLimit": 8}, "grid": {"color": "rgba(224, 230, 239, 0.06)"}, "min": "2026-01-01"}, "y": {"ticks": {"color": "rgba(224, 230, 239, 0.6)", "font": {"size": 10}}, "grid": {"color": "rgba(224, 230, 239, 0.06)"}}}}}};
+    document.addEventListener('DOMContentLoaded', () => {
+      window._chartInstances = {};
+      Object.entries(CHART_CONFIGS).forEach(([id, cfg]) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        try {
+          window._chartInstances[id] = new Chart(el, cfg);
+        } catch (e) {
+          console.error('Chart init failed for', id, e);
+        }
+      });
+      // Apply default zoom (war period)
+      if (Object.keys(CHART_CONFIGS).length > 0) {
+        applyDateRange(currentDateRange);
+      }
+      // Filter data-sources table to the initially-active tab
+      const activeTabBtn = document.querySelector('.tab-btn.active');
+      if (activeTabBtn && activeTabBtn.dataset.tab) {
+        filterDataSourcesByTab(activeTabBtn.dataset.tab);
+      } else {
+        // No tabs on this page — show all rows and total count
+        filterDataSourcesByTab(null);
+      }
+    });
+  </script>
+</body>
+</html>

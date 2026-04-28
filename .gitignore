@@ -1,0 +1,36 @@
+# Staging area for VPS rsync pulls — large, regenerable
+_vps_pull/
+
+# Source data — large (700+ MB) and regenerable from the upstream sources.
+# Don't push to GitHub; rebuild locally via scripts/refresh_data.py + the
+# migration script.
+data/
+
+# Reference copies of the precursor dashboards — kept locally for visual
+# reference but not part of Iran Monitor itself.
+reference/
+
+# Python bytecode
+__pycache__/
+*.pyc
+*.pyo
+
+# Build outputs (regenerable)
+outputs/
+
+# Runtime logs (created by ingest scripts; rotate locally, no need to push)
+logs/
+
+# macOS
+.DS_Store
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*~
+
+# Secrets
+.env
+.env.local
+*.token

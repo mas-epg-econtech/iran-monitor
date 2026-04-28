@@ -837,7 +837,7 @@
   </div>
 
   <footer>
-    <span>Iran Monitor &middot; built 2026-04-28 03:34 by MAS-EPG-EconTech</span>
+    <span>Iran Monitor &middot; built 2026-04-28 03:53 by MAS-EPG-EconTech</span>
     <span>Data: CEIC, SingStat, Motorist, DataGov, Bloomberg/GSheets, Yahoo Finance, ADB AsianBondsOnline, Investing.com, IMF PortWatch</span>
   </footer>
 
@@ -916,6 +916,13 @@
       const countEl = document.getElementById('dsSummaryCount');
       if (countEl) {
         countEl.textContent = visibleRows + ' series across ' + visibleCharts.size + ' charts';
+      }
+      // Hide the entire collapsible expansion when the active tab has no
+      // charts (e.g. Trade / Shipping / MAS EPG reports tabs that are pure
+      // placeholders or PDF cards). Avoids showing "0 series across 0 charts".
+      const section = document.querySelector('.data-sources-section');
+      if (section) {
+        section.style.display = (visibleRows === 0) ? 'none' : '';
       }
     }
 

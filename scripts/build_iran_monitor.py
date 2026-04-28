@@ -1378,6 +1378,13 @@ BASE_TEMPLATE = '''<!DOCTYPE html>
       if (countEl) {{
         countEl.textContent = visibleRows + ' series across ' + visibleCharts.size + ' charts';
       }}
+      // Hide the entire collapsible expansion when the active tab has no
+      // charts (e.g. Trade / Shipping / MAS EPG reports tabs that are pure
+      // placeholders or PDF cards). Avoids showing "0 series across 0 charts".
+      const section = document.querySelector('.data-sources-section');
+      if (section) {{
+        section.style.display = (visibleRows === 0) ? 'none' : '';
+      }}
     }}
 
     // ── Date-range / war-period zoom ──

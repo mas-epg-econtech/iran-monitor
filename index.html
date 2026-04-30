@@ -122,6 +122,99 @@
     .chart-empty { padding: 2rem 0; text-align: center; }
     .muted { color: var(--text-muted); }
 
+    /* Country-panel selector — used by the Regional Shipping tab to swap
+       the same shipping-nowcast cards across the 9 regional countries.
+       Same styling reused by .view-selector-* (Regional Trade product
+       picker). */
+    .country-selector-wrap, .view-selector-wrap {
+      display: flex; align-items: center; gap: 0.6rem;
+      margin: 0.5rem 0 1.25rem;
+    }
+    .country-selector-label, .view-selector-label {
+      font-size: 0.85rem; color: var(--text-muted); font-weight: 500;
+    }
+    .country-selector, .view-selector {
+      background: var(--bg-card); color: var(--text);
+      border: 1px solid var(--border); border-radius: 6px;
+      padding: 0.35rem 0.6rem; font-size: 0.9rem;
+      cursor: pointer;
+    }
+    .country-selector:focus, .view-selector:focus {
+      outline: none; border-color: var(--accent);
+    }
+    .country-panel { /* one per country; show/hide via inline display style */ }
+    .view-panel { /* one per view; show/hide via inline display style */ }
+
+    /* Per-chart action row (zoom in/out etc.). Mirrors the original
+       shipping-nowcast dashboard's button styling. */
+    .chart-actions {
+      display: flex; gap: 0.5rem; justify-content: flex-end;
+      margin-top: 0.5rem;
+    }
+    .zoom-toggle-btn {
+      background: transparent;
+      color: #9ca3af;
+      border: 1px solid #374151;
+      border-radius: 4px;
+      padding: 0.18rem 0.55rem;
+      font-size: 0.72rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .zoom-toggle-btn:hover {
+      color: #e5e7eb; border-color: #6b7280; background: #1f2937;
+    }
+    .zoom-toggle-btn.active {
+      color: var(--accent); border-color: var(--accent);
+    }
+
+    /* Multi-subchart cards: a card containing multiple side-by-side plots
+       (used by the Singapore Trade Exposure tab where each SITC has annual
+       shares + monthly levels in one wide card). */
+    .chart-card-multi { /* card itself uses the same .chart-card style */ }
+    /* Single shared legend across all subcharts in a card. Used when
+       single_legend=True is passed; per-subchart Chart.js legends are
+       suppressed in that case. */
+    .card-legend {
+      display: flex; flex-wrap: wrap; gap: 0.4rem 1rem;
+      margin: 0.25rem 0 0.5rem; padding: 0.5rem 0;
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+    }
+    .card-legend-item {
+      display: inline-flex; align-items: center; gap: 0.4rem;
+      font-size: 0.78rem; color: var(--text-muted);
+    }
+    .card-legend-swatch {
+      display: inline-block; width: 14px; height: 14px;
+      border-radius: 3px; flex-shrink: 0;
+    }
+    /* Override the per-card description max-width so it spans the full card
+       on multi-subchart cards (default 64ch is for single-column readability;
+       wide multi-cards have ~2× that width available). Same override applies
+       when a card is alone on its row (columns=1 grid). */
+    .chart-card-multi .card-desc,
+    .chart-grid-single .card-desc { max-width: none; }
+    .subchart-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1.25rem;
+      margin-top: 0.5rem;
+    }
+    .subchart { min-width: 0; }
+    .subchart-title {
+      margin: 0 0 0.4rem 0;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    @media (max-width: 800px) {
+      .subchart-grid { grid-template-columns: 1fr; }
+    }
+
     /* ── Source chip palette (used in the Data sources table) ── */
     .source-chip {
       display: inline-block;
@@ -503,7 +596,7 @@
   </div>
 
   <footer>
-    <span>Iran Monitor &middot; built 2026-04-28 16:18 by MAS-EPG-EconTech</span>
+    <span>Iran Monitor &middot; built 2026-04-30 08:38 by MAS-EPG-EconTech</span>
     <span>Data: CEIC, SingStat, Motorist, DataGov, Bloomberg/GSheets, Yahoo Finance, ADB AsianBondsOnline, Investing.com, IMF PortWatch</span>
   </footer>
 
@@ -561,6 +654,17 @@
       group.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b === btn));
       group.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'tab-' + slug));
       filterDataSourcesByTab(slug);
+      applyDateRangeBarVisibility(btn);
+    }
+
+    // ── Hide the page-wide "War period / 1Y / All time" selector when the
+    // active tab is marked data-hide-date-range (e.g. Trade tabs whose
+    // content is all bar charts on a category x-axis — zoom is irrelevant).
+    function applyDateRangeBarVisibility(activeBtn) {
+      const bar = document.querySelector('.date-range-bar');
+      if (!bar) return;
+      const hide = activeBtn && activeBtn.dataset.hideDateRange === "true";
+      bar.style.display = hide ? "none" : "";
     }
 
     // ── Data sources table — filter rows by active tab ──
@@ -621,12 +725,26 @@
       Object.entries(instances).forEach(([id, chart]) => {
         if (!chart) return;
 
-        // Find the latest date across this chart's datasets
+        // Skip charts that own their zoom via a per-chart Zoom In/Out button
+        // (e.g. shipping nowcast cards). Otherwise the page-level default
+        // would clobber the user's per-chart state.
+        if (NO_DEFAULT_ZOOM.has(id)) return;
+
+        // Skip non-time-axis charts (e.g. bar charts with category x-axis).
+        // The page-wide date-range selector only makes sense for time series;
+        // category-axis charts have a fixed set of discrete labels.
+        const xType = chart.options && chart.options.scales && chart.options.scales.x && chart.options.scales.x.type;
+        if (xType && xType !== "time") return;
+
+        // Find the earliest and latest dates across this chart's datasets.
         let latestDate = "";
+        let earliestDate = "";
         chart.data.datasets.forEach(ds => {
           ds.data.forEach(pt => {
             const x = typeof pt === "object" ? pt.x : null;
-            if (x && x > latestDate) latestDate = x;
+            if (!x) return;
+            if (x > latestDate) latestDate = x;
+            if (!earliestDate || x < earliestDate) earliestDate = x;
           });
         });
 
@@ -636,33 +754,44 @@
         } else if (range === "1y") {
           xMin = oneYearAgo; xMax = now;
         } else if (range === "war") {
-          if (latestDate && latestDate >= WAR_START) {
-            xMin = WAR_ZOOM_START; xMax = now;
+          // Unified war-zoom logic for ALL charts:
+          //   xMax is always `now` (so the WAR_START annotation + any
+          //   post-war gap remain visible).
+          //   xMin defaults to WAR_ZOOM_START, but walks backward through
+          //   the data when there are fewer than MIN_WAR_POINTS distinct
+          //   timestamps in the window — so low-frequency charts AND
+          //   stale-data charts both render with consistent x-axis width
+          //   relative to sibling charts (data on the left, empty gap on
+          //   the right for stale series).
+          xMax = now;
+          xMin = WAR_ZOOM_START;
 
-            // For low-frequency series (monthly, quarterly), the default war
-            // window can have only 1-2 distinct timestamps. Count DISTINCT
-            // timestamps (not total points) so a 4-series-monthly chart
-            // isn't fooled by 3 dates × 4 lines = 12 "points". If too few
-            // distinct dates in the window, walk start back through the data.
-            const MIN_WAR_POINTS = 8;
-            const inWindow = new Set();
-            const allDates = new Set();
-            chart.data.datasets.forEach(ds => {
-              ds.data.forEach(pt => {
-                const x = typeof pt === "object" ? pt.x : null;
-                if (!x) return;
-                allDates.add(x);
-                if (x >= WAR_ZOOM_START) inWindow.add(x);
-              });
+          // Count DISTINCT timestamps (not total points) — a 4-series
+          // monthly chart with 3 dates × 4 lines = 12 points is still
+          // visually 3 columns of dots, so we walk back if too few dates.
+          const MIN_WAR_POINTS = 8;
+          const inWindow = new Set();
+          const allDates = new Set();
+          chart.data.datasets.forEach(ds => {
+            ds.data.forEach(pt => {
+              const x = typeof pt === "object" ? pt.x : null;
+              if (!x) return;
+              allDates.add(x);
+              if (x >= WAR_ZOOM_START) inWindow.add(x);
             });
-            if (inWindow.size < MIN_WAR_POINTS && allDates.size > 0) {
-              const sorted = Array.from(allDates).sort();
-              const idx = Math.max(0, sorted.length - MIN_WAR_POINTS);
-              xMin = sorted[idx];
-            }
-          } else {
-            // No war-period coverage — show all time + add stale label
-            xMin = null; xMax = null;
+          });
+          if (inWindow.size < MIN_WAR_POINTS && allDates.size > 0) {
+            const sorted = Array.from(allDates).sort();
+            const idx = Math.max(0, sorted.length - MIN_WAR_POINTS);
+            xMin = sorted[idx];
+          }
+
+          // Stale-data label, two flavours:
+          //   (a) data ENDS before the war (whole series is pre-war stale)
+          //   (b) data STARTS after the war begins (no pre-war context)
+          // Only one shows per chart; (a) takes precedence since a series
+          // can't simultaneously end before and start after WAR_START.
+          if (!latestDate || latestDate < WAR_START) {
             const canvas = document.getElementById(id);
             const container = canvas && canvas.parentElement;
             if (container && !container.parentElement.querySelector(".chart-stale-label")) {
@@ -672,6 +801,20 @@
               const label = document.createElement("div");
               label.className = "chart-stale-label";
               label.textContent = "Data ends " + lastFmt + " — no war-period coverage";
+              container.parentElement.insertBefore(label, container);
+            }
+          } else if (earliestDate && earliestDate >= WAR_START) {
+            // Series only starts on/after the war began — no pre-war context.
+            // Common for new ingest sources (e.g. day-by-day investing.com
+            // commodity scrapes that started in March 2026).
+            const canvas = document.getElementById(id);
+            const container = canvas && canvas.parentElement;
+            if (container && !container.parentElement.querySelector(".chart-stale-label")) {
+              const startFmt = new Date(earliestDate)
+                .toLocaleDateString("en-US", { month: "short", year: "numeric" });
+              const label = document.createElement("div");
+              label.className = "chart-stale-label";
+              label.textContent = "Data starts " + startFmt + " — no pre-war context";
               container.parentElement.insertBefore(label, container);
             }
           }
@@ -685,10 +828,129 @@
       });
     }
 
+    // ── Country-panel selector (Regional Shipping tab) ──
+    // The country_panels section emits N <div class="country-panel"
+    // data-country="<iso2>"> blocks, only one of which is visible at a time.
+    // The dropdown's onchange fires this handler to swap visibility.
+    // ── View selector (Regional Trade product picker, etc.) ──
+    // Same pattern as switchCountryPanel: hides all sibling .view-panel
+    // divs in the same <section>, then shows the one with matching
+    // data-view, and triggers chart resize on the now-visible canvases.
+    function switchView(selectEl) {
+      const key = selectEl.value;
+      const wrap = selectEl.closest("section");
+      if (!wrap) return;
+      wrap.querySelectorAll(".view-panel").forEach(p => {
+        p.style.display = (p.dataset.view === key) ? "" : "none";
+      });
+      const active = wrap.querySelector('.view-panel[data-view="' + key + '"]');
+      if (active && window._chartInstances) {
+        active.querySelectorAll("canvas[id^='chart_']").forEach(canvas => {
+          const inst = window._chartInstances[canvas.id];
+          if (inst) inst.resize();
+        });
+      }
+    }
+    window.switchView = switchView;
+
+    function switchCountryPanel(selectEl) {
+      const iso2 = selectEl.value;
+      // Find the parent .country-panels container so we only switch within
+      // this section (not other selectors on the page).
+      const wrap = selectEl.closest("section");
+      if (!wrap) return;
+      const panels = wrap.querySelectorAll(".country-panel");
+      panels.forEach(p => {
+        const match = (p.dataset.country === iso2);
+        p.style.display = match ? "" : "none";
+      });
+      // Charts inside a hidden panel don't lay out properly until the panel
+      // is shown. Trigger a Chart.js resize on every chart in the now-active
+      // panel and re-apply the current page-level date range so axes are
+      // correct.
+      const activePanel = wrap.querySelector('.country-panel[data-country="' + iso2 + '"]');
+      if (activePanel && window._chartInstances) {
+        activePanel.querySelectorAll("canvas[id^='chart_']").forEach(canvas => {
+          const inst = window._chartInstances[canvas.id];
+          if (inst) {
+            inst.resize();
+            // Respect any per-chart zoom state (don't clobber Zoom In).
+            if (!window._chartZoomState || !window._chartZoomState[canvas.id]) {
+              if (typeof applyDateRange === "function" &&
+                  typeof currentDateRange !== "undefined") {
+                // Date range will be re-applied to all charts on next user
+                // click; but we also force a refresh now via the chart itself.
+                inst.update("none");
+              }
+            }
+          }
+        });
+      }
+    }
+    window.switchCountryPanel = switchCountryPanel;
+
+    // ── Per-chart Zoom In / Zoom Out toggle ──
+    // Mirrors the original shipping-nowcast dash. Overrides the page-level
+    // date-range bar for a single chart: zoomed-in view spans ~3 months
+    // pre-war + post-war (so the war annotation + recent detail are
+    // maximally legible); zoomed-out view restores the page's currently-
+    // selected range (war / 1y / all).
+    window._chartZoomState = window._chartZoomState || {};   // chartId -> bool
+    function toggleChartZoom(btn) {
+      const targetId = btn.dataset.target;
+      if (!targetId) return;
+      const chart = window._chartInstances[targetId];
+      if (!chart) return;
+      const zoomedIn = !window._chartZoomState[targetId];
+      window._chartZoomState[targetId] = zoomedIn;
+
+      if (zoomedIn) {
+        // ~3 months pre-war + everything from war start onward
+        const warDate = new Date(WAR_START);
+        warDate.setDate(warDate.getDate() - 91);
+        const xMin = warDate.toISOString().slice(0, 10);
+        const xMax = new Date().toISOString().slice(0, 10);
+        chart.options.scales.x.min = xMin;
+        chart.options.scales.x.max = xMax;
+        chart.update();
+        btn.textContent = "Zoom Out";
+        btn.title = "Restore the page-level date range";
+        btn.classList.add("active");
+      } else {
+        // Hand control back to the page-level date-range bar.
+        delete chart.options.scales.x.min;
+        delete chart.options.scales.x.max;
+        chart.update();
+        // Re-apply whatever the date-range bar currently has selected, so
+        // un-zooming doesn't leave us stuck on whatever the chart showed
+        // before the user pressed "Zoom In".
+        if (typeof applyDateRange === "function" && typeof currentDateRange !== "undefined") {
+          applyDateRange(currentDateRange);
+        }
+        btn.textContent = "Zoom In";
+        btn.title = "Zoom in to ~3 months pre-war + war period";
+        btn.classList.remove("active");
+      }
+    }
+    window.toggleChartZoom = toggleChartZoom;
+
     // ── Chart.js initialization ──
     const CHART_CONFIGS = {};
+    // Charts that own their zoom (per-chart Zoom In/Out button). applyDateRange
+    // skips these so the page-level "war" default doesn't override.
+    const NO_DEFAULT_ZOOM = new Set([]);
     document.addEventListener('DOMContentLoaded', () => {
       window._chartInstances = {};
+      // Buttons that ship with `data-default-zoomed-in="true"` mean the
+      // chart was rendered with a zoomed-in x-axis baked in. Seed the
+      // chartZoomState so the FIRST click on the toggle correctly flips
+      // to "Zoom Out" (otherwise the toggle inverts the meaning).
+      document.querySelectorAll(
+        '.zoom-toggle-btn[data-default-zoomed-in="true"]'
+      ).forEach(btn => {
+        const tid = btn.dataset.target;
+        if (tid) window._chartZoomState[tid] = true;
+      });
       Object.entries(CHART_CONFIGS).forEach(([id, cfg]) => {
         const el = document.getElementById(id);
         if (!el) return;
@@ -702,10 +964,12 @@
       if (Object.keys(CHART_CONFIGS).length > 0) {
         applyDateRange(currentDateRange);
       }
-      // Filter data-sources table to the initially-active tab
+      // Filter data-sources table + apply date-range-bar visibility for the
+      // initially-active tab (in case it's flagged hide_date_range).
       const activeTabBtn = document.querySelector('.tab-btn.active');
       if (activeTabBtn && activeTabBtn.dataset.tab) {
         filterDataSourcesByTab(activeTabBtn.dataset.tab);
+        applyDateRangeBarVisibility(activeTabBtn);
       } else {
         // No tabs on this page — show all rows and total count
         filterDataSourcesByTab(null);

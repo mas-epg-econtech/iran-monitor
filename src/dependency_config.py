@@ -17,6 +17,12 @@ Preferred mapping approach:
 - Put exact Google Sheets row-2 names in `google_sheet_series`
 """
 
+# 2026-04-30: enable PEP 604 (X | Y) annotation syntax under Python 3.9.
+# `from __future__ import annotations` defers all annotation evaluation to
+# string form so `list[str] | None` is valid at runtime even on 3.9. (CEIC
+# client itself still requires 3.10+; this just unblocks our own modules.)
+from __future__ import annotations
+
 
 def node(
     *,
@@ -82,7 +88,7 @@ DEPENDENCY_NODES = {
         description="Bunker fuel prices (VLSFO, 380cst) — cost driver for shipping and bunkering activity.",
         children=[
             "water_transport",
-            "wholesale_bunkering",
+            "wholesale",
         ],
         google_sheet_series=[
             "ClearLynx VLSFO Bunker Fuel Spot Price/Singapore",
@@ -271,7 +277,10 @@ DEPENDENCY_NODES = {
         label="Petroleum Refining",
         description="Refinery output — directly affected by crude oil costs and margins.",
         children=["sg_import_prices", "sg_export_prices"],
-        series_ids=["ipi_petroleum", "singstat_imports_petroleum", "singstat_exports_petroleum"],
+        # 2026-04-30: dropped singstat_imports_petroleum/exports_petroleum (the
+        # legacy SITC-33-aggregate refining trade card). Same data is now on
+        # the Trade Exposure tab broken out by partner at SITC 333/334 levels.
+        series_ids=["ipi_petroleum"],
         google_sheet_series=[],
         sheet_keywords=["petroleum", "refinery", "refining"],
     ),
@@ -284,15 +293,15 @@ DEPENDENCY_NODES = {
         sheet_keywords=["petrochemical", "polymer"],
     ),
     "basic_chemicals": node(
-        label="Basic Chemicals",
-        description="Broad chemical production — affected by feedstock and energy input costs.",
-        series_ids=["ipi_chemicals_cluster", "singstat_ipi_specialty_chemicals"],
+        label="Specialty and other chemicals",
+        description="Industrial production indices for specialty chemicals (paints, coatings, adhesives) and other chemicals (basic intermediates). Both downstream of crude/naphtha — capture how upstream feedstock cost pressure propagates through the chemicals value chain.",
+        series_ids=["ipi_specialty_chemicals", "ipi_other_chemicals"],
         google_sheet_series=[],
         sheet_keywords=["chemical", "methanol", "ammonia", "caustic"],
     ),
     "gas_electricity": node(
-        label="Gas & Electricity",
-        description="Power generation and utility costs — affected by natural gas prices.",
+        label="Electricity tariff (households)",
+        description="Low-tension domestic electricity tariff. Almost all of Singapore's power generation runs on imported natural gas, so the tariff lags but tracks LNG and pipeline-gas prices — the household-facing channel for Middle East gas-supply disruption.",
         children=["sg_cpi", "sg_supply_prices"],
         series_ids=["singstat_electricity_tariff"],
         google_sheet_series=[],
@@ -300,43 +309,47 @@ DEPENDENCY_NODES = {
     ),
 
     # ── Wholesale ──
-    "wholesale_bunkering": node(
-        label="Wholesale: Bunkering",
-        description="Bunker fuel sales volumes — directly tied to marine fuel prices.",
-        series_ids=["singstat_wti_bunkering"],
+    "wholesale": node(
+        label="Wholesale trade",
+        description="Foreign Wholesale Trade Index — overall plus the petroleum, chemicals, and ship-chandlers/bunkering subsectors. Direct gauge of how upstream cost shocks pass through to wholesale activity at the Port of Singapore.",
+        series_ids=[
+            "fwti_overall",
+            "fwti_petroleum",
+            "fwti_chemical",
+            "fwti_bunkering",
+        ],
         google_sheet_series=[],
-        sheet_keywords=["bunker", "marine fuel"],
-    ),
-    "wholesale_ex_bunkering": node(
-        label="Wholesale: ex Bunkering",
-        description="Non-fuel wholesale trade — indirectly exposed through input cost pass-through.",
-        series_ids=["singstat_wti_ex_petroleum"],
-        google_sheet_series=[],
-        sheet_keywords=["wholesale"],
+        sheet_keywords=["wholesale", "bunker"],
     ),
 
     # ── Downstream ──
-    "construction": node(
-        label="Construction",
-        description="Construction activity — affected by materials costs (chemicals, plastics, steel).",
+    "construction_demand": node(
+        label="Construction demand",
+        description="Construction-sector activity — value of contracts awarded plus physical-volume demand for cement, steel, and granite. Direct gauge of building activity; cement and steel demand are sensitive to upstream energy-cost pressure since both are energy-intensive to produce.",
         series_ids=[
             "singstat_construction_contracts",
-            "ceic_constr_price_cement",
-            "ceic_constr_price_steel",
-            "ceic_constr_price_granite",
-            "ceic_constr_price_sand",
-            "ceic_constr_price_concrete",
             "ceic_constr_demand_cement",
             "ceic_constr_demand_steel",
             "ceic_constr_demand_granite",
-            "ceic_constr_demand_concrete",
         ],
         google_sheet_series=[],
         sheet_keywords=["construction", "cement", "building"],
     ),
+    "construction_prices": node(
+        label="Construction material prices",
+        description="Monthly prices of key construction materials — cement, steel bars, granite, and concreting sand. Direct passthrough channel for upstream chemicals and energy cost pressure into the building cost base.",
+        series_ids=[
+            "ceic_constr_price_cement",
+            "ceic_constr_price_steel",
+            "ceic_constr_price_granite",
+            "ceic_constr_price_sand",
+        ],
+        google_sheet_series=[],
+        sheet_keywords=["construction", "cement"],
+    ),
     "real_estate": node(
-        label="Real Estate",
-        description="Property market activity — indirectly affected via construction costs and utility prices.",
+        label="Real estate",
+        description="Property-market activity — indirectly exposed to upstream cost shocks via construction-cost passthrough and utility-price moves.",
         series_ids=[
             "ceic_property_price_index",
             "ceic_residential_transactions",
@@ -345,11 +358,16 @@ DEPENDENCY_NODES = {
         sheet_keywords=["property", "real estate"],
     ),
     "food_beverage": node(
-        label="Food & Beverage",
-        description="F&B sector activity — affected by fertiliser costs (food inputs) and packaging costs (plastics).",
+        label="Food and beverage services",
+        description="F&B Services Index — overall sector plus the five segments (restaurants, fast food, caterers, food courts, cafes). Captures how imported food-input cost pressure (driven by fertiliser, packaging, and transport costs) flows through to consumer-facing F&B activity.",
         children=["sg_cpi"],
         series_ids=[
-            "food_and_beverage_sales",
+            "fb_overall",
+            "fb_restaurants",
+            "fb_fast_food",
+            "fb_caterers",
+            "fb_food_courts",
+            "fb_cafes",
         ],
         google_sheet_series=[],
         sheet_keywords=["food", "beverage", "packaging"],
@@ -361,35 +379,35 @@ DEPENDENCY_NODES = {
     # ==================================================================
     "sg_cpi": node(
         label="Inflation",
-        description="Headline CPI and MAS Core inflation — the broadest measure of how energy cost shocks reach households.",
+        description="Headline CPI and MAS Core inflation — the broadest measure of how energy and imported-input cost shocks reach Singapore households.",
         series_ids=["ceic_cpi_yoy", "ceic_cpi_mom", "ceic_mas_core_inflation", "mas_core_inflation_mom"],
         google_sheet_series=[],
         sheet_keywords=["cpi", "inflation"],
     ),
     "sg_supply_prices": node(
-        label="Domestic Supply Prices",
-        description="DSPI = Domestic Supply Price Index. Prices of goods supplied to the SG market (local + imports). Upstream of CPI.",
+        label="Domestic supply prices",
+        description="Prices of goods supplied to the Singapore market — split into oil and non-oil components. Sits upstream of CPI in the price chain; oil component reacts directly to crude-oil cost shocks.",
         series_ids=["ceic_dspi_oil", "ceic_dspi_non_oil"],
         google_sheet_series=[],
         sheet_keywords=["supply price", "dspi"],
     ),
     "sg_producer_prices": node(
-        label="Producer Prices",
-        description="MPPI = Manufactured Producers' Price Index. Factory-gate prices for SG-manufactured goods — excludes imports.",
+        label="Producer prices",
+        description="Factory-gate prices for goods manufactured in Singapore (excludes imports), split into oil and non-oil. Captures how upstream cost pressure shows up before retail-level inflation.",
         series_ids=["ceic_mppi_oil", "ceic_mppi_non_oil"],
         google_sheet_series=[],
         sheet_keywords=["producer price", "mppi"],
     ),
     "sg_import_prices": node(
-        label="Import Prices",
-        description="IPI = Import Price Index (not the IIP for Industrial Production). Prices of imports landing in SG — external cost-pressure channel.",
+        label="Import prices",
+        description="Prices of imports landing in Singapore — split into oil, non-oil, and food components. Direct gauge of imported cost-push pressure during Middle East supply disruptions.",
         series_ids=["ceic_ipi_oil", "ceic_ipi_non_oil", "ceic_ipi_food"],
         google_sheet_series=[],
         sheet_keywords=["import price"],
     ),
     "sg_export_prices": node(
-        label="Export Prices",
-        description="EPI = Export Price Index. Prices SG exporters charge overseas buyers — export-margin and competitiveness signal.",
+        label="Export prices",
+        description="Prices Singapore exporters charge overseas buyers — split into oil and non-oil. Reveals how much upstream cost shocks are passed through to external customers, and signals export competitiveness.",
         series_ids=["ceic_epi_oil", "ceic_epi_non_oil"],
         google_sheet_series=[],
         sheet_keywords=["export price"],
@@ -436,7 +454,7 @@ DEPENDENCY_NODES = {
     ),
     "regional_ipi": node(
         label="Regional Industrial Production",
-        description="Industrial production indices for 10 Asian economies — real-side activity gauge that captures hits to manufacturing from energy and input cost shocks.",
+        description="Year-on-year change in industrial / manufacturing production for 10 Asian economies — real-side activity gauge that captures hits to manufacturing from energy and input cost shocks.",
         series_ids=[
             "regional_ipi_cn",
             "regional_ipi_in",

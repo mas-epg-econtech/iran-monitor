@@ -3982,6 +3982,43 @@ BASE_TEMPLATE = '''<!DOCTYPE html>
 # Main
 # ---------------------------------------------------------------------------
 def main():
+    import argparse
+    p = argparse.ArgumentParser(
+        description="Build Iran Monitor static HTML pages.",
+    )
+    p.add_argument(
+        "--airbase",
+        metavar="AIRBASE_PUBLIC_DIR",
+        help="If set, ALSO emit a CSP-compliant variant of each page into "
+             "the given directory (typically /opt/airbase-iran/public/). "
+             "Replaces inline <script>/onclick with external dashboard.js + "
+             "data-* attributes, and points <script src=...> at vendor/ "
+             "instead of CDN URLs. The regular GitHub-Pages-style HTML is "
+             "always written to the repo root regardless of this flag.",
+    )
+    args = p.parse_args()
+
+    airbase_dir = None
+    if args.airbase:
+        from pathlib import Path as _Path
+        airbase_dir = _Path(args.airbase).resolve()
+        airbase_dir.mkdir(parents=True, exist_ok=True)
+        # Copy vendor JS files into airbase public/vendor/ so the CSP-
+        # compliant HTML can reference them locally instead of via CDN.
+        from shutil import copy2
+        vendor_src = ROOT / "assets" / "vendor"
+        vendor_dst = airbase_dir / "vendor"
+        vendor_dst.mkdir(parents=True, exist_ok=True)
+        for v in vendor_src.glob("*.js"):
+            copy2(v, vendor_dst / v.name)
+        print(f"Airbase mode: writing CSP-compliant variant + vendor/ to {airbase_dir}")
+
+    # Lazy import — only needed in airbase mode.
+    csp_transform_page = None
+    if airbase_dir:
+        sys.path.insert(0, str(ROOT / "scripts"))
+        from csp_transform import csp_transform_page  # noqa: E402
+
     conn = get_connection()
     print(f"Building Iran Monitor pages → {OUTPUT_DIR}")
     # Aggregate chart manifest across all pages — fed to the summary-stats
@@ -3989,12 +4026,29 @@ def main():
     # entry knows which page it came from so a single LLM page-call can
     # see only that page's charts.
     manifest: dict = {}
+    dashboard_js_seen: str | None = None   # capture once, write once for airbase
     for slug, page_def in PAGES.items():
         html_str, data_sources_state = render_page(slug, page_def, conn)
         out_path = OUTPUT_DIR / f"{slug if slug != 'index' else 'index'}.html"
         out_path.write_text(html_str, encoding="utf-8")
         size_kb = out_path.stat().st_size / 1024
         print(f"  {out_path.name}: {size_kb:.1f} KB")
+
+        # Airbase variant: post-transform the same HTML into CSP-compliant
+        # form and write to <airbase_dir>/<page>.html plus the per-page
+        # chart-configs JS.
+        if airbase_dir:
+            transformed_html, dashboard_js, chart_configs_js = csp_transform_page(
+                html_str, slug,
+            )
+            (airbase_dir / out_path.name).write_text(transformed_html, encoding="utf-8")
+            (airbase_dir / f"chart-configs-{slug}.js").write_text(
+                chart_configs_js, encoding="utf-8",
+            )
+            # dashboard.js content is identical for every page — capture
+            # the first non-empty version and write it once at the end.
+            if dashboard_js and not dashboard_js_seen:
+                dashboard_js_seen = dashboard_js
         # Stash chart-level metadata for the manifest. We store only the
         # series_id list per chart (not the full series-data lists which
         # would make the manifest huge); the extractor re-queries the DB
@@ -4032,6 +4086,16 @@ def main():
         json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8"
     )
     print(f"  chart_manifest.json: {len(manifest)} charts → {manifest_path.name}")
+
+    # Airbase: write the shared dashboard.js once (its content is identical
+    # for every page; we captured it from the first transformed page above).
+    if airbase_dir and dashboard_js_seen:
+        (airbase_dir / "dashboard.js").write_text(dashboard_js_seen, encoding="utf-8")
+        airbase_size_kb = sum(
+            f.stat().st_size for f in airbase_dir.rglob("*") if f.is_file()
+        ) / 1024
+        print(f"  Airbase variant complete in {airbase_dir} ({airbase_size_kb:.0f} KB total)")
+
     print("Done.")
 
 

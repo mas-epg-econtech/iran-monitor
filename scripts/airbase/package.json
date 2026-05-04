@@ -1,0 +1,12 @@
+{
+  "name": "iran-monitor",
+  "version": "1.0.0",
+  "description": "Iran Monitor dashboard — internal MAS economic dashboard tracking developments related to the Iran war and Middle East situation.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0"
+  }
+}

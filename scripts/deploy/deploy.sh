@@ -126,5 +126,67 @@ if ! git push origin main; then
     exit "$EXIT_CODE"
 fi
 
+# 5. Airbase deploy (CSP-compliant variant). Skipped silently if the
+# Airbase project directory doesn't exist yet — lets the GitHub Pages
+# pipeline keep working before the Airbase project is set up.
+AIRBASE_DIR=/opt/airbase-iran
+if [[ -d "$AIRBASE_DIR" && -x /usr/local/bin/airbase ]]; then
+    echo "[$LOG_TS] Building Airbase variant + deploying..."
+
+    # Re-build with the --airbase flag pointing at the Airbase project's
+    # public/. This re-renders the same HTML in CSP-compliant form and
+    # copies vendor JS into place.
+    if ! python3 scripts/build_iran_monitor.py --airbase "$AIRBASE_DIR/public"; then
+        EXIT_CODE=$?
+        echo "[$LOG_TS] Airbase CSP build FAILED (exit $EXIT_CODE)"
+        send_failure_email \
+            "Iran Monitor cron AIRBASE BUILD FAILED at $LOG_TS" \
+            "GitHub Pages deploy succeeded but the Airbase --airbase build
+failed (exit $EXIT_CODE)."
+        rm -f "$PIPELINE_LOG"
+        exit "$EXIT_CODE"
+    fi
+
+    # airbase login --ci needs AIRBASE_ACCESS_KEY_ID + SECRET in env;
+    # those are already loaded from .env at the top of this script.
+    cd "$AIRBASE_DIR"
+    if ! airbase login --ci; then
+        EXIT_CODE=$?
+        echo "[$LOG_TS] airbase login FAILED (exit $EXIT_CODE)"
+        send_failure_email \
+            "Iran Monitor cron AIRBASE LOGIN FAILED at $LOG_TS" \
+            "GitHub Pages deploy succeeded but airbase login failed
+(exit $EXIT_CODE). Check AIRBASE_ACCESS_KEY_ID / SECRET in .env, and
+that ~/.airbaserc exists."
+        rm -f "$PIPELINE_LOG"
+        exit "$EXIT_CODE"
+    fi
+
+    if ! airbase build; then
+        EXIT_CODE=$?
+        echo "[$LOG_TS] airbase build FAILED (exit $EXIT_CODE)"
+        send_failure_email \
+            "Iran Monitor cron AIRBASE BUILD FAILED at $LOG_TS" \
+            "GitHub Pages deploy succeeded but 'airbase build' failed
+(exit $EXIT_CODE)."
+        rm -f "$PIPELINE_LOG"
+        exit "$EXIT_CODE"
+    fi
+
+    if ! airbase deploy --yes; then
+        EXIT_CODE=$?
+        echo "[$LOG_TS] airbase deploy FAILED (exit $EXIT_CODE)"
+        send_failure_email \
+            "Iran Monitor cron AIRBASE DEPLOY FAILED at $LOG_TS" \
+            "GitHub Pages deploy succeeded but 'airbase deploy' failed
+(exit $EXIT_CODE)."
+        rm -f "$PIPELINE_LOG"
+        exit "$EXIT_CODE"
+    fi
+    echo "[$LOG_TS] Airbase deploy complete"
+else
+    echo "[$LOG_TS] Airbase deploy SKIPPED ($AIRBASE_DIR not set up yet, or airbase CLI missing)"
+fi
+
 rm -f "$PIPELINE_LOG"
 echo "[$LOG_TS] Auto-refresh complete; pushed to origin/main"

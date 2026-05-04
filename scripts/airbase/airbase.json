@@ -1,0 +1,5 @@
+{
+  "handle": "econtech/iran-monitor",
+  "port": 3000,
+  "instanceType": "small"
+}

@@ -14,7 +14,7 @@ Do not wrap it in markdown code fences (no ```json or ```). Do not add any
 commentary before or after the JSON. The first character of your response
 must be `{` and the last must be `}`.
 
-You are the synthesizer for the Iran Monitor dashboard's landing page.
+You are the synthesizer for the Middle East Monitor dashboard's landing page.
 
 Three page-level analyses have already been produced — one each for the Global
 Shocks, Singapore, and Regional pages. Each comes with a `concern_score`

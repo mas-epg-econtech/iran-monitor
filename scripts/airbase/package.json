@@ -1,7 +1,7 @@
 {
-  "name": "airbase-iran-monitor",
+  "name": "airbase-middle-east-monitor",
   "version": "1.0.0",
-  "description": "Iran Monitor dashboard on Airbase",
+  "description": "Middle East Monitor dashboard on Airbase",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"

@@ -2437,7 +2437,7 @@ BASE_TEMPLATE = '''<!DOCTYPE html>
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>{title} — Iran Monitor</title>
+  <title>{title} — Middle East Monitor</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/luxon@3.4.4/build/global/luxon.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1.3.1/dist/chartjs-adapter-luxon.umd.min.js"></script>
@@ -3450,7 +3450,7 @@ BASE_TEMPLATE = '''<!DOCTYPE html>
   </div>
 
   <footer>
-    <span>Iran Monitor &middot; built {built_at} by MAS-EPG-EconTech</span>
+    <span>Middle East Monitor &middot; built {built_at} by MAS-EPG-EconTech</span>
     <span>Data: CEIC, SingStat, Motorist, DataGov, Bloomberg/GSheets, Yahoo Finance, ADB AsianBondsOnline, Investing.com, IMF PortWatch</span>
   </footer>
 
@@ -3984,7 +3984,7 @@ BASE_TEMPLATE = '''<!DOCTYPE html>
 def main():
     import argparse
     p = argparse.ArgumentParser(
-        description="Build Iran Monitor static HTML pages.",
+        description="Build Middle East Monitor static HTML pages.",
     )
     p.add_argument(
         "--airbase",
@@ -4020,7 +4020,7 @@ def main():
         from csp_transform import csp_transform_page  # noqa: E402
 
     conn = get_connection()
-    print(f"Building Iran Monitor pages → {OUTPUT_DIR}")
+    print(f"Building Middle East Monitor pages → {OUTPUT_DIR}")
     # Aggregate chart manifest across all pages — fed to the summary-stats
     # extractor, which the LLM narrative system consumes. Each chart's
     # entry knows which page it came from so a single LLM page-call can

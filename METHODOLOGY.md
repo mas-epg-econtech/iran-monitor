@@ -1,4 +1,4 @@
-# Iran Monitor — Methodology & Build Record
+# Middle East Monitor — Methodology & Build Record
 
 A static, multi-page economic dashboard tracking how the Iran war and broader
 Middle East stress are transmitting into Singapore's economy and the wider
@@ -270,7 +270,7 @@ Multiple brands per day per grade, collapsed to a daily mean per
 ### Shipping nowcast (`scripts/shipping/`)
 
 The shipping nowcast pipeline runs locally as part of `update_data.py`
-(steps 7 + 8) — Iran Monitor is fully self-contained for shipping data,
+(steps 7 + 8) — Middle East Monitor is fully self-contained for shipping data,
 no VPS dependency.
 
 - **`download_portwatch_data.py`** (step 7) — incremental pull from IMF
@@ -623,7 +623,7 @@ deterministic IDs of the form `<page>.<tab>.<card_slug>` (e.g.
   petroleum (10 annual + 10 monthly) + share derivations from Comtrade
 - **Editorial pass complete**: titles, descriptions, redundancy
   suppression, ≤210-char descriptions, deterministic chart IDs (planned)
-- **Pushed to GitHub** at `mas-epg-econtech/iran-monitor`
+- **Pushed to GitHub** at `mas-epg-econtech/middle-east-monitor`
 - **AI narrative system live** — landing-page status badges + narratives,
   per-page summary cards with chart citations, AI-disclosure footer.
   Sonnet 4.6 generates all four narrative payloads. σ-based trigger
@@ -654,7 +654,7 @@ deterministic IDs of the form `<page>.<tab>.<card_slug>` (e.g.
 ### Live deployment
 
 Pushed to GitHub Pages at
-`https://mas-epg-econtech.github.io/iran-monitor/`. Auto-deploys on push
+`https://mas-epg-econtech.github.io/middle-east-monitor/`. Auto-deploys on push
 to `main`. The shipping nowcast iframe points at the sister site
 `https://mas-epg-econtech.github.io/shipping-nowcast/`.
 

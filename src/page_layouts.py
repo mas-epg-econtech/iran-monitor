@@ -96,7 +96,7 @@ PAGES = {
 
     # ── Landing ───────────────────────────────────────────────────────────
     "index": {
-        "title": "Iran Monitor",
+        "title": "Middle East Monitor",
         "subtitle": "Economic developments related to the Iran war and Middle East situation",
         "narrative_source": "placeholder",
         "narrative_placeholder": (

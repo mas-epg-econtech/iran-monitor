@@ -13,5 +13,5 @@ app.get('/health', (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`Iran Monitor running on port ${PORT}`);
+  console.log(`Middle East Monitor running on port ${PORT}`);
 });

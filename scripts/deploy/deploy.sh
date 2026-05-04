@@ -1,5 +1,5 @@
 #!/bin/bash
-# Iran Monitor — VPS-side daily refresh & GitHub Pages auto-push.
+# Middle East Monitor — VPS-side daily refresh & GitHub Pages auto-push.
 #
 # Invoked by cron on the VPS (see scripts/deploy/setup_vps_runbook.md for
 # install steps). Runs the full data pipeline, then commits + pushes any
@@ -35,7 +35,7 @@ source venv/bin/activate
 
 echo
 echo "=================================================================="
-echo "[$LOG_TS] Iran Monitor cron refresh starting"
+echo "[$LOG_TS] Middle East Monitor cron refresh starting"
 echo "=================================================================="
 
 send_failure_email() {
@@ -55,7 +55,7 @@ if ! python3 scripts/energy/update_data.py 2>&1 | tee "$PIPELINE_LOG"; then
     EXIT_CODE=${PIPESTATUS[0]}
     echo "[$LOG_TS] PIPELINE FAILED (exit $EXIT_CODE)"
     send_failure_email \
-        "Iran Monitor cron FAILED at $LOG_TS" \
+        "Middle East Monitor cron FAILED at $LOG_TS" \
         "Pipeline exited $EXIT_CODE. Tail of log:
 $(tail -50 "$PIPELINE_LOG")"
     rm -f "$PIPELINE_LOG"
@@ -108,7 +108,7 @@ git commit -m "$COMMIT_MSG" || {
     EXIT_CODE=$?
     echo "[$LOG_TS] git commit failed (exit $EXIT_CODE)"
     send_failure_email \
-        "Iran Monitor cron COMMIT FAILED at $LOG_TS" \
+        "Middle East Monitor cron COMMIT FAILED at $LOG_TS" \
         "Pipeline succeeded but git commit failed (exit $EXIT_CODE)."
     rm -f "$PIPELINE_LOG"
     exit "$EXIT_CODE"
@@ -119,7 +119,7 @@ if ! git push origin main; then
     EXIT_CODE=$?
     echo "[$LOG_TS] git push FAILED (exit $EXIT_CODE)"
     send_failure_email \
-        "Iran Monitor cron PUSH FAILED at $LOG_TS" \
+        "Middle East Monitor cron PUSH FAILED at $LOG_TS" \
         "Pipeline succeeded and commit landed locally but git push failed
 (exit $EXIT_CODE). Manually 'git push' from /opt/iran-monitor when fixed."
     rm -f "$PIPELINE_LOG"
@@ -140,7 +140,7 @@ if [[ -d "$AIRBASE_DIR" && -x /usr/local/bin/airbase ]]; then
         EXIT_CODE=$?
         echo "[$LOG_TS] Airbase CSP build FAILED (exit $EXIT_CODE)"
         send_failure_email \
-            "Iran Monitor cron AIRBASE BUILD FAILED at $LOG_TS" \
+            "Middle East Monitor cron AIRBASE BUILD FAILED at $LOG_TS" \
             "GitHub Pages deploy succeeded but the Airbase --airbase build
 failed (exit $EXIT_CODE)."
         rm -f "$PIPELINE_LOG"
@@ -154,7 +154,7 @@ failed (exit $EXIT_CODE)."
         EXIT_CODE=$?
         echo "[$LOG_TS] airbase login FAILED (exit $EXIT_CODE)"
         send_failure_email \
-            "Iran Monitor cron AIRBASE LOGIN FAILED at $LOG_TS" \
+            "Middle East Monitor cron AIRBASE LOGIN FAILED at $LOG_TS" \
             "GitHub Pages deploy succeeded but airbase login failed
 (exit $EXIT_CODE). Check AIRBASE_ACCESS_KEY_ID / SECRET in .env, and
 that ~/.airbaserc exists."
@@ -166,7 +166,7 @@ that ~/.airbaserc exists."
         EXIT_CODE=$?
         echo "[$LOG_TS] airbase build FAILED (exit $EXIT_CODE)"
         send_failure_email \
-            "Iran Monitor cron AIRBASE BUILD FAILED at $LOG_TS" \
+            "Middle East Monitor cron AIRBASE BUILD FAILED at $LOG_TS" \
             "GitHub Pages deploy succeeded but 'airbase build' failed
 (exit $EXIT_CODE)."
         rm -f "$PIPELINE_LOG"
@@ -177,7 +177,7 @@ that ~/.airbaserc exists."
         EXIT_CODE=$?
         echo "[$LOG_TS] airbase deploy FAILED (exit $EXIT_CODE)"
         send_failure_email \
-            "Iran Monitor cron AIRBASE DEPLOY FAILED at $LOG_TS" \
+            "Middle East Monitor cron AIRBASE DEPLOY FAILED at $LOG_TS" \
             "GitHub Pages deploy succeeded but 'airbase deploy' failed
 (exit $EXIT_CODE)."
         rm -f "$PIPELINE_LOG"

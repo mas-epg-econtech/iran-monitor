@@ -1,11 +1,11 @@
-# Iran Monitor — Airbase Setup Runbook
+# Middle East Monitor — Airbase Setup Runbook
 
 One-time steps to scaffold the Airbase project at `/opt/airbase-iran/`
 on the VPS. After these steps, `deploy.sh` will automatically include
 the Airbase deploy on every cron run.
 
 Mirrors `/opt/airbase-asean/` — copy-paste with the Airbase handle
-changed to `econtech/iran-monitor`.
+changed to `econtech/middle-east-monitor`.
 
 ---
 
@@ -100,12 +100,12 @@ airbase deploy --yes
 ```
 
 Expected: a stream of build / push / deploy output, ending in a "Deployed
-to https://iran-monitor.app.tc1.airbase.sg" message (or similar — see
+to https://middle-east-monitor.app.tc1.airbase.sg" message (or similar — see
 the skill doc for exact format).
 
 ## 5. Visit the live URL
 
-Open `https://iran-monitor.app.tc1.airbase.sg` in your browser.
+Open `https://middle-east-monitor.app.tc1.airbase.sg` in your browser.
 
 If it loads cleanly (charts render, tabs switch, status badges visible):
 done. Future cron runs will redeploy automatically.

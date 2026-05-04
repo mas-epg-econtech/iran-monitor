@@ -1,4 +1,4 @@
-# Iran Monitor — VPS Setup Runbook
+# Middle East Monitor — VPS Setup Runbook
 
 One-time setup steps to deploy the daily refresh + auto-push to GitHub
 Pages on the Hetzner VPS (`204.168.224.154`). Mirrors the existing
@@ -10,7 +10,7 @@ Pages on the Hetzner VPS (`204.168.224.154`). Mirrors the existing
 
 - SSH access to `root@204.168.224.154`
 - Python 3.11 and git already installed on the VPS
-- The Iran Monitor repo cloned somewhere accessible
+- The Middle East Monitor repo cloned somewhere accessible
 - Your local `.env` (with `CEIC_*`, `ANTHROPIC_API_KEY`, Google Sheets creds)
 - Your local `data/iran_monitor.db` (47 MB — to seed; saves the 30-min cold-start)
 
@@ -22,9 +22,9 @@ On the VPS:
 
 ```bash
 cd /opt
-git clone git@github-mas:mas-epg-econtech/iran-monitor.git
+git clone git@github-mas:mas-epg-econtech/middle-east-monitor.git
 # OR (if no SSH alias yet on VPS, use HTTPS first then switch later):
-# git clone https://github.com/mas-epg-econtech/iran-monitor.git
+# git clone https://github.com/mas-epg-econtech/middle-east-monitor.git
 cd iran-monitor
 ```
 
@@ -92,7 +92,7 @@ Test the email helper:
 cd /opt/iran-monitor
 set -a; source .env; set +a
 python3.11 scripts/deploy/send_email.py \
-    --subject "Iran Monitor — VPS setup test" \
+    --subject "Middle East Monitor — VPS setup test" \
     --body "If you see this, SMTP is wired up correctly."
 ```
 
@@ -116,7 +116,7 @@ cat /root/.ssh/id_ed25519_iran_monitor.pub
 ```
 
 Then in GitHub:
-- Go to https://github.com/mas-epg-econtech/iran-monitor/settings/keys
+- Go to https://github.com/mas-epg-econtech/middle-east-monitor/settings/keys
 - "Add deploy key"
 - Title: `iran-monitor-vps-bot`
 - Paste the public key
@@ -127,7 +127,7 @@ Add an SSH config entry on the VPS so this key resolves to a host alias:
 ```bash
 cat >> /root/.ssh/config << 'EOF'
 
-Host github-iran-monitor
+Host github-middle-east-monitor
     HostName github.com
     User git
     IdentityFile /root/.ssh/id_ed25519_iran_monitor
@@ -139,14 +139,14 @@ Re-point the repo's origin remote to use this alias:
 
 ```bash
 cd /opt/iran-monitor
-git remote set-url origin git@github-iran-monitor:mas-epg-econtech/iran-monitor.git
+git remote set-url origin git@github-middle-east-monitor:mas-epg-econtech/middle-east-monitor.git
 ```
 
 Test:
 
 ```bash
-ssh -T git@github-iran-monitor
-# Should print: "Hi mas-epg-econtech/iran-monitor! You've successfully authenticated..."
+ssh -T git@github-middle-east-monitor
+# Should print: "Hi mas-epg-econtech/middle-east-monitor! You've successfully authenticated..."
 git fetch origin && echo "fetch OK"
 ```
 
@@ -211,7 +211,7 @@ git -C /opt/iran-monitor log --oneline -3
 
 Confirm the latest commit is "Auto-refresh ..." with today's date and
 that GitHub Pages picked up the deploy
-(https://mas-epg-econtech.github.io/iran-monitor/).
+(https://mas-epg-econtech.github.io/middle-east-monitor/).
 
 ---
 
@@ -219,7 +219,7 @@ that GitHub Pages picked up the deploy
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| "ssh: Could not resolve hostname github-iran-monitor" | SSH config alias missing on VPS | Re-do step 6's SSH config block |
+| "ssh: Could not resolve hostname github-middle-east-monitor" | SSH config alias missing on VPS | Re-do step 6's SSH config block |
 | "Permission denied (publickey)" on push | Deploy key not registered or write access not ticked | Re-do step 6's GitHub-side registration; check "Allow write access" |
 | Email helper "missing env vars" | SMTP_* not in .env | Re-do step 4's SMTP block |
 | Email helper "SMTP send failed: 535" | Gmail app password wrong/revoked | Generate a new app password and update .env |

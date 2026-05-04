@@ -1403,7 +1403,7 @@ def fetch_motorist_fuel_prices() -> dict[str, pd.DataFrame]:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Iran Monitor data pipeline — fetch + build + narratives.",
+        description="Middle East Monitor data pipeline — fetch + build + narratives.",
     )
     parser.add_argument(
         "--skip-narratives",
@@ -1445,7 +1445,7 @@ def main():
     args = parser.parse_args()
 
     print("=" * 60)
-    print("Iran Monitor — Data Pipeline")
+    print("Middle East Monitor — Data Pipeline")
     print("=" * 60)
 
     # Ensure database exists

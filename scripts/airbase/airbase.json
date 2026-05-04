@@ -1,6 +1,6 @@
 {
   "framework": "container",
-  "handle": "econtech/iran-monitor",
+  "handle": "econtech/middle-east-monitor",
   "port": 3000,
   "allowIpAddresses": [
     "8.29.230.18/31",

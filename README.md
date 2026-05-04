@@ -1,6 +1,8 @@
-# Iran Monitor
+# Middle East Monitor
 
 Internal MAS economic dashboard tracking developments related to the Iran war and Middle East situation. Surfaces global energy shocks, Singapore-domestic transmission, and regional spillovers in one place, with AI-generated narratives that summarise the read for an MAS audience.
+
+(The repository, local folder, and VPS paths still use the legacy `iran-monitor` slug — see "Naming notes" at the bottom for context.)
 
 Static-by-design: every refresh produces fresh `index.html` + 3 page HTMLs that can be served as plain files (currently deployed via GitHub Pages).
 
@@ -108,4 +110,12 @@ python3.11 scripts/build_iran_monitor.py
 
 ## Deployment
 
-Deploys to GitHub Pages at `https://mas-epg-econtech.github.io/iran-monitor/`. Auto-deploys on push to `main`. The Global Shocks page embeds the live shipping nowcast iframe from the sister site `https://mas-epg-econtech.github.io/shipping-nowcast/`.
+Deploys to GitHub Pages at `https://mas-epg-econtech.github.io/middle-east-monitor/`. Auto-deploys on push to `main`. The Global Shocks page embeds the live shipping nowcast iframe from the sister site `https://mas-epg-econtech.github.io/shipping-nowcast/`.
+
+---
+
+## Naming notes
+
+The dashboard is publicly named **Middle East Monitor** (page titles, README, narratives). The GitHub repo is **`middle-east-monitor`** (renamed from `iran-monitor`; GitHub auto-redirects the old URL). The Airbase project is **`econtech/middle-east-monitor`** at `https://middle-east-monitor.app.tc1.airbase.sg`.
+
+The local Mac folder + VPS directory + SQLite DB filename still use the legacy `iran-monitor` / `iran_monitor.db` slug — kept that way to avoid the cost of a full filesystem rename. Any internal references to those paths should keep using the legacy slug.

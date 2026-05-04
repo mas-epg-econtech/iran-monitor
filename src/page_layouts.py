@@ -97,7 +97,7 @@ PAGES = {
     # ── Landing ───────────────────────────────────────────────────────────
     "index": {
         "title": "Middle East Monitor",
-        "subtitle": "Economic developments related to the Iran war and Middle East situation",
+        "subtitle": "How is the Middle East crisis transmitting to Singapore and the region? Energy, financial markets, trade flows, shipping — refreshed daily.",
         "narrative_source": "placeholder",
         "narrative_placeholder": (
             "Key takeaways across Global Shocks, Singapore, and Regional dashboards "

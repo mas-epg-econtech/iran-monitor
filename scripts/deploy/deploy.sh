@@ -29,7 +29,7 @@ if [[ -f .env ]]; then
     set +a
 fi
 
-# Activate venv so python3.11 + pip-installed deps resolve.
+# Activate venv so python3 + pip-installed deps resolve.
 # shellcheck disable=SC1091
 source venv/bin/activate
 
@@ -42,7 +42,7 @@ send_failure_email() {
     local subject=$1
     local body=$2
     if [[ -x "$PROJECT_ROOT/scripts/deploy/send_email.py" ]]; then
-        python3.11 "$PROJECT_ROOT/scripts/deploy/send_email.py" \
+        python3 "$PROJECT_ROOT/scripts/deploy/send_email.py" \
             --subject "$subject" --body "$body" \
             || echo "[$LOG_TS] email helper itself failed (continuing)"
     fi
@@ -51,7 +51,7 @@ send_failure_email() {
 # 1. Run the pipeline. Capture combined output so we can build a
 # meaningful commit message later.
 PIPELINE_LOG=$(mktemp -t iran-pipeline.XXXXXX)
-if ! python3.11 scripts/energy/update_data.py 2>&1 | tee "$PIPELINE_LOG"; then
+if ! python3 scripts/energy/update_data.py 2>&1 | tee "$PIPELINE_LOG"; then
     EXIT_CODE=${PIPESTATUS[0]}
     echo "[$LOG_TS] PIPELINE FAILED (exit $EXIT_CODE)"
     send_failure_email \

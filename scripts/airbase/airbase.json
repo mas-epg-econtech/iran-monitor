@@ -1,5 +1,12 @@
 {
+  "framework": "container",
   "handle": "econtech/iran-monitor",
   "port": 3000,
-  "instanceType": "small"
+  "allowIpAddresses": [
+    "8.29.230.18/31",
+    "104.30.161.22/31",
+    "104.30.161.24/31",
+    "57.140.24.0/24"
+  ],
+  "instanceType": "nano"
 }

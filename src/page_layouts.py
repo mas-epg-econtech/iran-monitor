@@ -105,6 +105,14 @@ PAGES = {
         ),
         "sections": [
             {"type": "landing_cards"},  # Special section; consumes LANDING_CARDS
+            # 4-color status badges + narrative + drivers + expandable refs.
+            # Pulls from `narrative_synthesizer` in metadata; gracefully
+            # falls back to a placeholder when the pipeline hasn't run.
+            {"type": "status_indicators"},
+            # AI-disclosure + methodology footer (collapsible). Sits at the
+            # bottom of the landing page so viewers can see how the AI
+            # narrative + status badges above were produced.
+            {"type": "ai_methodology"},
         ],
     },
 
@@ -118,6 +126,10 @@ PAGES = {
             "regeneration triggers are configured."
         ),
         "sections": [
+            # LLM-generated tight summary + key_findings bullets at the top.
+            # Reads `narrative_global_shocks` from metadata; silent skip when
+            # the pipeline hasn't run.
+            {"type": "page_summary"},
             {
                 "type": "tab_group",
                 "tabs": [
@@ -188,6 +200,9 @@ PAGES = {
             "system is wired in."
         ),
         "sections": [
+            # LLM-generated tight summary + key_findings bullets per question
+            # (energy_supply + financial_markets), at the top of the page.
+            {"type": "page_summary"},
             {
                 "type": "tab_group",
                 "tabs": [
@@ -693,6 +708,8 @@ PAGES = {
             "Regional takeaways will appear here once narrative regeneration is wired in."
         ),
         "sections": [
+            # LLM-generated tight summary + key_findings bullets per question.
+            {"type": "page_summary"},
             {
                 "type": "tab_group",
                 "tabs": [
@@ -1090,13 +1107,23 @@ PAGES = {
                                     "benchmarks (LME Nickel, FCPO MYR, JKM LNG, Newcastle coal, "
                                     "rubber TSR20)."
                                 ),
+                                # Override the regional.financial_markets default — these
+                                # commodity cards are price-level / supply-cost indicators
+                                # for the LLM's energy_supply question, not for the
+                                # financial-tightening question. Gold is the one exception
+                                # (per-card override below).
+                                "relevant_to":      ["energy_supply"],
                                 "columns":          2,
                                 "hide_chart_title": True,
                                 "hide_legend":      True,
                                 "nodes": [
                                     {"label": "Gold",
                                      "description": "COMEX gold futures front-month (USD/oz). Global safe-haven benchmark; Iran/Hormuz tensions typically push gold higher.",
-                                     "series": ["GOLD"]},
+                                     "series": ["GOLD"],
+                                     # Per-card override: gold is a financial-stress signal
+                                     # (safe-haven flow), not a supply-cost signal like
+                                     # the other commodities in this section.
+                                     "relevant_to": ["financial_markets"]},
                                     {"label": "Copper",
                                      "description": "COMEX copper futures (USD/lb). Leading indicator of global industrial demand and a proxy for China growth.",
                                      "series": ["COPPER"]},

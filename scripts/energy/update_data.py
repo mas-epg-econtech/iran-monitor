@@ -1,13 +1,22 @@
 """
 Data pipeline: fetches from CEIC, Google Sheets, UN Comtrade, SingStat, and
-Motorist.sg, then writes everything into the SQLite database.
+Motorist.sg, then writes everything into the SQLite database, builds the
+dashboard, computes summary statistics, generates AI narratives, and
+rebuilds the dashboard with the fresh narratives embedded.
 
 Run this from your MAS network (where CEIC is accessible).
 
 Usage:
     1. Fill in .env with credentials (see .env.example)
-    2. pip install -r requirements-pipeline.txt
-    3. python scripts/update_data.py
+    2. pip3.11 install -r requirements-pipeline.txt
+    3. python3.11 scripts/energy/update_data.py
+       python3.11 scripts/energy/update_data.py --skip-narratives  # dev iteration
+                                                                    # (saves $0.30-1.00
+                                                                    #  in API calls)
+
+    NOTE: Must be invoked with python3.11. The subprocess steps (7-10) inherit
+    the same interpreter via sys.executable, so launching with python3.11
+    propagates through the whole pipeline automatically.
 
 Sources:
     - CEIC API        -> macro indicators (crude oil, transport, financial)
@@ -15,12 +24,35 @@ Sources:
     - UN Comtrade API -> monthly partner-level trade (crude, products, petchem)
     - SingStat API    -> monthly petroleum import/export totals (M451001)
     - Motorist.sg     -> daily retail fuel prices by brand
+
+Pipeline (12 steps):
+    [1/12] CEIC                          [7/12]  PortWatch download (incremental)
+    [2/12] Google Sheets                 [8/12]  Shipping nowcast (gated; STL+Ridge)
+    [3/12] SingStat trade                [9/12]  Build dashboard (1st pass)
+    [4/12] Comtrade regional dep         [10/12] Compute summary stats
+    [5/12] SingStat Table Builder        [10b/12] Evaluate narrative triggers
+    [6/12] Motorist fuel prices          [11/12] Generate AI narratives (gated)
+                                         [12/12] Rebuild dashboard with narratives
+
+Shipping pipeline gate:
+    Step 8 (nowcast compute) is skipped when step 7's incremental download
+    found no new PortWatch data (PortWatch publishes weekly on Tuesday EST,
+    so most days return zero new rows). Override with --force-shipping.
+    Skip the whole shipping block (steps 7+8) with --skip-shipping-pipeline.
+
+Narrative trigger gate:
+    Steps 11 + 12 are skipped automatically when no curated trigger series has
+    moved by more than its 2σ threshold (computed from 2025 data) AND the
+    last narrative is less than 7 days old. Override with --force-narratives.
+    Inspect what would fire with --show-trigger-state.
 """
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import sqlite3
+import subprocess
 import sys
 import time
 from datetime import datetime, timezone
@@ -1370,8 +1402,50 @@ def fetch_motorist_fuel_prices() -> dict[str, pd.DataFrame]:
 # ---------------------------------------------------------------------------
 
 def main():
+    parser = argparse.ArgumentParser(
+        description="Iran Monitor data pipeline — fetch + build + narratives.",
+    )
+    parser.add_argument(
+        "--skip-narratives",
+        action="store_true",
+        help="Skip steps 11 and 12 (AI narrative generation and final rebuild). "
+             "Useful for dev iteration where you don't want to spend $0.30-1.00 "
+             "in API calls. The dashboard built in step 9 will still show "
+             "whatever cached narratives were last generated.",
+    )
+    parser.add_argument(
+        "--force-narratives",
+        action="store_true",
+        help="Force narrative regeneration even if no triggers have fired "
+             "(bypasses the σ-based trigger gate). Useful for refreshing "
+             "narratives after a prompt change.",
+    )
+    parser.add_argument(
+        "--show-trigger-state",
+        action="store_true",
+        help="Run through fetchers + build + stats, then print the trigger "
+             "evaluation and exit without spending on narratives. Useful for "
+             "checking what would fire without committing API spend.",
+    )
+    parser.add_argument(
+        "--skip-shipping-pipeline",
+        action="store_true",
+        help="Skip steps 7 + 8 (PortWatch download + nowcast compute). The "
+             "existing shipping nowcast file (data/shipping/nowcast_results_s13.json) "
+             "stays in place and gets re-projected into time_series. Useful for "
+             "fast iteration on non-shipping work.",
+    )
+    parser.add_argument(
+        "--force-shipping",
+        action="store_true",
+        help="Force the nowcast compute (step 8) even if the PortWatch "
+             "download (step 7) brought no new data. Useful after a "
+             "methodology change in the nowcast pipeline.",
+    )
+    args = parser.parse_args()
+
     print("=" * 60)
-    print("Energy Dashboard — Data Pipeline")
+    print("Iran Monitor — Data Pipeline")
     print("=" * 60)
 
     # Ensure database exists
@@ -1381,7 +1455,7 @@ def main():
     timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
     # 1. CEIC
-    print(f"\n[1/5] Fetching CEIC series...")
+    print(f"\n[1/12] Fetching CEIC series...")
     ceic_frames = fetch_ceic_series()
     ceic_total = 0
     for series_id, df in ceic_frames.items():
@@ -1398,7 +1472,7 @@ def main():
     print(f"  -> mas_core_inflation_mom: {n_mom} rows written")
 
     # 2. Google Sheets (Bloomberg price data)
-    print(f"\n[2/7] Fetching Google Sheets (Bloomberg price data)...")
+    print(f"\n[2/12] Fetching Google Sheets (Bloomberg price data)...")
     gsheets_frames = fetch_google_sheets_series()
     gsheets_total = 0
     for series_id, df in gsheets_frames.items():
@@ -1409,7 +1483,7 @@ def main():
     print(f"  -> {len(gsheets_frames)} series, {gsheets_total} total rows written")
 
     # 3. SingStat trade (from the same Google Sheet — 3 trade tabs)
-    print(f"\n[3/7] Fetching SingStat trade (Google Sheet)...")
+    print(f"\n[3/12] Fetching SingStat trade (Google Sheet)...")
     singstat_trade_df = fetch_singstat_trade_from_gsheets()
     singstat_trade_count = replace_singstat_trade(singstat_trade_df, conn)
     conn.commit()
@@ -1450,13 +1524,10 @@ def main():
     n_reg_fuel_lvl = compute_regional_fuel_levels(conn)
     print(f"  -> chemicals: {n_reg_lvl} rows | refined petroleum: {n_reg_fuel_lvl} rows")
 
-    # 3d. Singapore Shipping — project the PortWatch shipping nowcast JSON
-    # (data/shipping/nowcast_results_s13.json) into time_series so the
-    # Singapore Shipping tab's chart_grid renders natively. ~6k rows for
-    # 16 series × 379 weekly points each. No API calls — pure file read.
-    print(f"\n[3d] Projecting Singapore shipping nowcast into time_series...")
-    n_nowcast = compute_singapore_shipping_nowcast(conn)
-    print(f"  -> {n_nowcast} nowcast rows written")
+    # 3d. (moved) Singapore shipping nowcast projection into time_series now
+    # runs as part of step 8 — after the PortWatch download + nowcast compute
+    # — so the projection always sees freshly-computed data instead of
+    # whatever stale JSON was on disk.
 
     # 3e. Financial markets — yfinance (FX, US 10Y, COMEX commodities),
     # ADB AsianBondsOnline (ASEAN+VN sovereign 10Y yields), and
@@ -1498,8 +1569,8 @@ def main():
     # the authoritative SG trade view). Was costing ~30s + ~600 API calls per
     # pipeline run with no consumer. Re-enable by uncommenting if a future
     # chart needs the bilateral HS-coded SG petroleum trade detail.
-    print(f"\n[4/7] UN Comtrade fetch — TEMPORARILY DISABLED (no current consumer; saves ~30s/run).")
-    print(f"  Re-enable by uncommenting the block in update_data.py main(), step [4/7].")
+    print(f"\n[4/12] UN Comtrade fetch — TEMPORARILY DISABLED (no current consumer; saves ~30s/run).")
+    print(f"  Re-enable by uncommenting the block in update_data.py main(), step [4/12].")
     # trade_df = fetch_trade_from_comtrade()
     # trade_count = replace_trade(trade_df, conn)
     # conn.commit()
@@ -1539,7 +1610,7 @@ def main():
     print(f"  -> chemicals: {n_reg_share} rows | refined petroleum: {n_reg_fuel_share} rows")
 
     # 5. SingStat Table Builder (petroleum trade + construction + WTI + electricity)
-    print(f"\n[5/7] Fetching SingStat Table Builder series...")
+    print(f"\n[5/12] Fetching SingStat Table Builder series...")
     singstat_frames = fetch_singstat_merchandise()
     singstat_total = 0
     for series_id, df in singstat_frames.items():
@@ -1554,7 +1625,7 @@ def main():
     upsert_metadata("ipi_last_updated", timestamp)
 
     # 7. Motorist fuel prices
-    print(f"\n[6/7] Fetching Motorist.sg fuel prices...")
+    print(f"\n[6/12] Fetching Motorist.sg fuel prices...")
     motorist_frames = fetch_motorist_fuel_prices()
     motorist_total = 0
     for series_id, df in motorist_frames.items():
@@ -1564,17 +1635,119 @@ def main():
     upsert_metadata("motorist_last_updated", timestamp)
     print(f"  -> {len(motorist_frames)} grades, {motorist_total} total rows written")
 
+    # ─────────────────────────────────────────────────────────────────────
+    # Steps 7-8: Shipping nowcast pipeline (fully self-contained)
+    # ─────────────────────────────────────────────────────────────────────
+
+    # 7. PortWatch download — incremental update from IMF's public ArcGIS
+    # API. Cheap on most days (no new data) since PortWatch publishes
+    # weekly on Tuesday EST.
+    portwatch_csv = PROJECT_ROOT / "data" / "portwatch" / "Daily_Ports_Data.csv"
+    if args.skip_shipping_pipeline:
+        print(f"\n[7/12] PortWatch download — SKIPPED (--skip-shipping-pipeline).")
+        portwatch_changed = False
+    else:
+        prev_max_date = _csv_max_date(portwatch_csv)
+        print(f"\n[7/12] Downloading latest PortWatch data (incremental)...")
+        if prev_max_date:
+            print(f"  Existing CSV max date: {prev_max_date}")
+        _run_subprocess(
+            [sys.executable, str(PROJECT_ROOT / "scripts" / "shipping" / "download_portwatch_data.py")],
+            label="download_portwatch_data.py", hard_fail=False,
+        )
+        new_max_date = _csv_max_date(portwatch_csv)
+        if new_max_date:
+            print(f"  Post-download CSV max date: {new_max_date}")
+        portwatch_changed = (new_max_date != prev_max_date) and new_max_date is not None
+
+    # 8. Shipping nowcast — STL + Ridge regression on the PortWatch data.
+    # Skipped if step 7 brought no new rows, unless --force-shipping. After
+    # the nowcast JSON is fresh (or unchanged), project it into time_series
+    # so the Singapore Shipping tab renders against current data.
+    if args.skip_shipping_pipeline:
+        print(f"\n[8/12] Shipping nowcast — SKIPPED (--skip-shipping-pipeline).")
+        print(f"  Re-projecting existing nowcast JSON into time_series...")
+        n_nowcast = compute_singapore_shipping_nowcast(conn)
+        print(f"  -> {n_nowcast} nowcast rows written")
+    elif portwatch_changed or args.force_shipping:
+        reason = "PortWatch brought new data" if portwatch_changed else "--force-shipping set"
+        print(f"\n[8/12] Computing shipping nowcast (STL + Ridge); reason: {reason}...")
+        _run_subprocess(
+            [sys.executable, str(PROJECT_ROOT / "scripts" / "shipping" / "nowcast_pipeline.py")],
+            label="nowcast_pipeline.py", hard_fail=False,
+        )
+        print(f"  Projecting fresh nowcast JSON into time_series...")
+        n_nowcast = compute_singapore_shipping_nowcast(conn)
+        print(f"  -> {n_nowcast} nowcast rows written")
+    else:
+        print(f"\n[8/12] Shipping nowcast — SKIPPED (PortWatch data unchanged; "
+              f"PortWatch publishes weekly on Tuesday EST).")
+        print(f"  Re-projecting existing nowcast JSON into time_series...")
+        n_nowcast = compute_singapore_shipping_nowcast(conn)
+        print(f"  -> {n_nowcast} nowcast rows written")
+
     # Done with data fetching
     upsert_metadata("last_full_update", timestamp)
     conn.close()
 
-    # 8. LLM narrative (conditional on triggers) — currently broken (missing
-    # build_dashboard module), kept as a no-op skip for now.
-    print(f"\n[7/7] Checking narrative triggers...")
-    try:
-        _maybe_regenerate_narrative()
-    except Exception as exc:
-        print(f"  SKIP: Narrative generation failed: {exc}")
+    # ─────────────────────────────────────────────────────────────────────
+    # Steps 9-12: Build → stats → narratives → rebuild
+    # ─────────────────────────────────────────────────────────────────────
+
+    # 9. Build the dashboard once. This emits data/chart_manifest.json which
+    # the summary-stats step depends on. The rendered HTML at this point
+    # carries whatever AI narratives are currently in the DB metadata
+    # table (i.e. last run's narratives, or none on first run).
+    print(f"\n[9/12] Building dashboard (1st pass — emits chart manifest)...")
+    _run_subprocess([sys.executable, str(PROJECT_ROOT / "scripts" / "build_iran_monitor.py")],
+                    label="build_iran_monitor.py", hard_fail=True)
+
+    # 10. Compute summary statistics. Reads chart_manifest.json + queries the
+    # DB to produce data/summary_stats.json — the input to step 11.
+    print(f"\n[10/12] Computing summary statistics...")
+    _run_subprocess([sys.executable, str(PROJECT_ROOT / "scripts" / "compute_summary_stats.py")],
+                    label="compute_summary_stats.py", hard_fail=True)
+
+    # 10b. Evaluate narrative triggers — decide whether to refresh AI
+    # narratives this run. Avoids burning $0.30-1.00 on every refresh
+    # when nothing material has moved. Honoured unless --force-narratives.
+    trigger_decision = None
+    if not args.skip_narratives:
+        trigger_decision = _evaluate_narrative_triggers(forced=args.force_narratives)
+
+    if args.show_trigger_state:
+        print(f"\n[11/12] --show-trigger-state set — exiting without running narratives.")
+        return
+
+    if args.skip_narratives:
+        print(f"\n[11/12] Generating AI narratives — SKIPPED (--skip-narratives flag set).")
+        print(f"\n[12/12] Rebuild dashboard with narratives — SKIPPED (no fresh narratives).")
+        print(f"  The dashboard built in step 9 still reflects whatever cached narratives")
+        print(f"  were in the DB. Re-run without --skip-narratives to refresh them.")
+    elif trigger_decision is not None and not trigger_decision.refresh:
+        print(f"\n[11/12] Generating AI narratives — SKIPPED (no triggers fired).")
+        print(f"\n[12/12] Rebuild dashboard with narratives — SKIPPED (no fresh narratives).")
+        print(f"  The dashboard built in step 9 still reflects the cached narratives.")
+        print(f"  Use --force-narratives to override the trigger gate.")
+    else:
+        # 11. Generate AI narratives. 4 Sonnet 4.6 calls (~$0.30-1.00, 30-90s).
+        # Treat failures as warnings — the dashboard from step 9 still shows
+        # cached narratives, so a single failed refresh isn't catastrophic.
+        print(f"\n[11/12] Generating AI narratives (4 Sonnet 4.6 calls)...")
+        narratives_ok = _run_subprocess(
+            [sys.executable, str(PROJECT_ROOT / "scripts" / "generate_narratives.py")],
+            label="generate_narratives.py", hard_fail=False,
+        )
+
+        # 12. Rebuild the dashboard so the freshly-generated narratives get
+        # embedded into the HTML. Skip if step 11 failed (nothing new to embed).
+        if narratives_ok:
+            print(f"\n[12/12] Rebuilding dashboard with fresh narratives...")
+            _run_subprocess([sys.executable, str(PROJECT_ROOT / "scripts" / "build_iran_monitor.py")],
+                            label="build_iran_monitor.py (2nd pass)", hard_fail=True)
+        else:
+            print(f"\n[12/12] Rebuild SKIPPED — narrative generation failed in step 11.")
+            print(f"  The dashboard from step 9 still shows cached narratives.")
 
     db_size = DB_PATH.stat().st_size / 1024
     print(f"\n{'=' * 60}")
@@ -1584,74 +1757,127 @@ def main():
 
 
 # ---------------------------------------------------------------------------
-# LLM narrative generation
+# Narrative trigger evaluation
 # ---------------------------------------------------------------------------
+def _evaluate_narrative_triggers(*, forced: bool):
+    """Evaluate σ-based narrative triggers and print the decision.
+    Returns the TriggerDecision (with `.refresh` attr) or a forced-True
+    sentinel object if --force-narratives. Returns None if the trigger
+    config is missing (treats as 'always refresh' for backward
+    compatibility — print a warning so the user notices)."""
+    print(f"\n[10b/12] Evaluating narrative triggers...")
 
-from src.narrative_prompt import NARRATIVE_PROMPT
+    if forced:
+        print(f"  --force-narratives set — bypassing trigger gate.")
+        class _Forced:
+            refresh = True
+            reasons = ["--force-narratives flag bypasses the trigger gate."]
+        return _Forced()
 
-
-def _maybe_regenerate_narrative():
-    """Check triggers and regenerate the LLM narrative if needed."""
-    # Import here to avoid circular deps and to keep the pipeline runnable
-    # even without anthropic installed (it just skips narrative)
-    sys.path.insert(0, str(PROJECT_ROOT))
-    from build_dashboard import export_time_series, compute_summary
-    from src.narrative_triggers import evaluate_triggers
-
-    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
-    if not api_key:
-        print("  SKIP: ANTHROPIC_API_KEY not set")
-        return
-
-    # Compute current stats
-    series_data = export_time_series()
-    current_stats = compute_summary(series_data)
-
-    # Load previous stats and timestamp
-    prev_stats_json = get_metadata("narrative_prev_stats")
-    prev_timestamp = get_metadata("narrative_generated_at")
-    prev_stats = json.loads(prev_stats_json) if prev_stats_json else None
-
-    # Evaluate triggers
-    fired = evaluate_triggers(current_stats, prev_stats, prev_timestamp)
-
-    if not fired:
-        print("  No triggers fired — keeping cached narrative")
-        return
-
-    print(f"  {len(fired)} trigger(s) fired:")
-    for t in fired:
-        print(f"    - {t.id}: {t.description}")
-
-    # Call Claude API
-    print("  Generating narrative via Claude API...")
     try:
-        import anthropic
-    except ImportError:
-        print("  SKIP: 'anthropic' package not installed (pip install anthropic)")
-        return
+        from src.narrative_triggers_v2 import (   # noqa: E402
+            evaluate_triggers, load_thresholds, load_snapshot,
+        )
+    except ImportError as e:
+        print(f"  ⚠️  Could not import trigger module ({e}); will refresh narratives.")
+        return None
 
-    client = anthropic.Anthropic(api_key=api_key)
-    stats_json = json.dumps(current_stats, indent=2)
-    prompt = NARRATIVE_PROMPT.format(stats_json=stats_json)
+    try:
+        thresholds = load_thresholds()
+    except FileNotFoundError as e:
+        print(f"  ⚠️  {e}")
+        print(f"  Defaulting to refresh (no thresholds means we can't gate).")
+        return None
 
-    message = client.messages.create(
-        model="claude-haiku-4-5-20251001",
-        max_tokens=1024,
-        messages=[{"role": "user", "content": prompt}],
-    )
+    stats_path = PROJECT_ROOT / "data" / "summary_stats.json"
+    if not stats_path.exists():
+        print(f"  ⚠️  summary_stats.json missing; will refresh narratives.")
+        return None
+    current_stats = json.loads(stats_path.read_text(encoding="utf-8"))
 
-    narrative = message.content[0].text.strip()
-    print(f"  Generated {len(narrative)} chars")
+    conn = get_connection()
+    try:
+        last_snapshot = load_snapshot(conn)
+    finally:
+        conn.close()
 
-    # Store narrative + stats + timestamp
-    gen_timestamp = datetime.now(timezone.utc).isoformat()
-    upsert_metadata("llm_narrative", narrative)
-    upsert_metadata("narrative_prev_stats", json.dumps(current_stats))
-    upsert_metadata("narrative_generated_at", gen_timestamp)
-    upsert_metadata("narrative_triggers_fired", ", ".join(t.id for t in fired))
+    decision = evaluate_triggers(current_stats, last_snapshot, thresholds)
 
-    print(f"  Narrative stored (generated at {gen_timestamp})")
+    print(f"  Last narrative: {'never' if decision.age_days is None else f'{decision.age_days:.1f} days ago'}")
+    print(f"  Trigger series checked: {decision.n_series_checked}")
+    print(f"  Triggers fired: {decision.n_series_fired}")
+    print(f"  Decision: {'REFRESH' if decision.refresh else 'SKIP'}")
+    if decision.reasons:
+        for r in decision.reasons[:8]:
+            print(f"    - {r}")
+        if len(decision.reasons) > 8:
+            print(f"    ... and {len(decision.reasons) - 8} more reasons.")
+    return decision
+
+
+# ---------------------------------------------------------------------------
+# Shipping pipeline helper
+# ---------------------------------------------------------------------------
+def _csv_max_date(csv_path: Path, date_col: str = "date") -> str | None:
+    """Return the max value in `date_col` across the CSV, or None if the
+    file doesn't exist or the column is missing. Used to detect whether
+    an incremental PortWatch download brought new rows."""
+    if not csv_path.exists():
+        return None
+    try:
+        import csv as _csv
+        max_date = ""
+        with csv_path.open("r", encoding="utf-8-sig") as f:
+            reader = _csv.DictReader(f)
+            if not reader.fieldnames:
+                return None
+            # Look for the date column (case-insensitive, common variants).
+            col = None
+            for candidate in (date_col, "Date", "DATE", "date_str", "obs_date"):
+                if candidate in reader.fieldnames:
+                    col = candidate
+                    break
+            if col is None:
+                # Fall back to first column.
+                col = reader.fieldnames[0]
+            for row in reader:
+                v = (row.get(col) or "").strip()
+                if v and v > max_date:
+                    max_date = v
+        return max_date or None
+    except Exception:
+        # Best-effort — caller treats None as "couldn't read", which forces
+        # a nowcast recompute (safe default).
+        return None
+
+
+# ---------------------------------------------------------------------------
+# Subprocess helper
+# ---------------------------------------------------------------------------
+def _run_subprocess(cmd: list[str], *, label: str, hard_fail: bool) -> bool:
+    """Run a subprocess and stream its output live. Returns True on success.
+
+    If `hard_fail` is True, a non-zero exit code raises CalledProcessError
+    and aborts the pipeline. If False, prints a warning and returns False
+    so the caller can decide whether to continue.
+    """
+    try:
+        subprocess.run(cmd, check=True, cwd=PROJECT_ROOT)
+        return True
+    except subprocess.CalledProcessError as exc:
+        msg = f"  ⚠️  {label} exited with code {exc.returncode}"
+        if hard_fail:
+            print(msg)
+            raise
+        print(f"{msg} — continuing (this step is non-blocking).")
+        return False
+    except FileNotFoundError as exc:
+        msg = f"  ⚠️  {label} script not found: {exc.filename}"
+        if hard_fail:
+            print(msg)
+            raise
+        print(f"{msg} — continuing.")
+        return False
 
 
 if __name__ == "__main__":

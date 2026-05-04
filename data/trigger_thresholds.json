@@ -1,0 +1,160 @@
+{
+  "_meta": {
+    "computed_at": "2026-05-02T15:02:03Z",
+    "window": "2025-01-01 to 2025-12-31",
+    "n_sigma": 2,
+    "method": "σ of period-over-period changes (weekly Δ for weekly horizon, monthly Δ for monthly), threshold = n_sigma × σ."
+  },
+  "series": {
+    "global_crude_oil": {
+      "label": "Brent crude",
+      "page": "global_shocks",
+      "question": "energy_supply",
+      "kind": "pct",
+      "horizon": "weekly",
+      "sigma": 4.2458,
+      "threshold": 8.4916,
+      "n_samples": 52
+    },
+    "gsheets_naphtha_singapore_fob_cargoes": {
+      "label": "Naphtha Singapore FOB",
+      "page": "global_shocks",
+      "question": "energy_supply",
+      "kind": "pct",
+      "horizon": "weekly",
+      "sigma": 4.0677,
+      "threshold": 8.1355,
+      "n_samples": 52
+    },
+    "gsheets_jet_fuel_nwe_fob_barges": {
+      "label": "Jet fuel NWE",
+      "page": "global_shocks",
+      "question": "energy_supply",
+      "kind": "pct",
+      "horizon": "weekly",
+      "sigma": 4.6478,
+      "threshold": 9.2955,
+      "n_samples": 52
+    },
+    "ipi_petroleum": {
+      "label": "Petroleum refining IIP YoY",
+      "page": "singapore",
+      "question": "energy_supply",
+      "kind": "pp",
+      "horizon": "monthly",
+      "sigma": 5.3045,
+      "threshold": 10.6089,
+      "n_samples": 11
+    },
+    "ipi_petrochemicals": {
+      "label": "Petrochemicals IIP YoY",
+      "page": "singapore",
+      "question": "energy_supply",
+      "kind": "pp",
+      "horizon": "monthly",
+      "sigma": 8.4331,
+      "threshold": 16.8662,
+      "n_samples": 11
+    },
+    "regional_cpi_headline_ph": {
+      "label": "Philippines CPI headline YoY",
+      "page": "regional",
+      "question": "energy_supply",
+      "kind": "pp",
+      "horizon": "monthly",
+      "sigma": 0.3799,
+      "threshold": 0.7597,
+      "n_samples": 11
+    },
+    "JKM_LNG": {
+      "label": "JKM LNG futures",
+      "page": "regional",
+      "question": "energy_supply",
+      "kind": "pct",
+      "horizon": "weekly",
+      "sigma": 3.9283,
+      "threshold": 7.8565,
+      "n_samples": 35
+    },
+    "gsheets_us_dollar_singapore_dollar": {
+      "label": "USD/SGD",
+      "page": "singapore",
+      "question": "financial_markets",
+      "kind": "pct",
+      "horizon": "weekly",
+      "sigma": 0.6365,
+      "threshold": 1.273,
+      "n_samples": 52
+    },
+    "gsheets_nominal_effec_rt": {
+      "label": "SGD NEER",
+      "page": "singapore",
+      "question": "financial_markets",
+      "kind": "pct",
+      "horizon": "weekly",
+      "sigma": 0.1539,
+      "threshold": 0.3079,
+      "n_samples": 52
+    },
+    "gsheets_sgd_singapore_govt_bval_10y": {
+      "label": "SGS 10Y yield",
+      "page": "singapore",
+      "question": "financial_markets",
+      "kind": "pp",
+      "horizon": "weekly",
+      "sigma": 0.0885,
+      "threshold": 0.177,
+      "n_samples": 52
+    },
+    "gsheets_usd_sgd_opt_vol_1m": {
+      "label": "USD/SGD 1M implied vol",
+      "page": "singapore",
+      "question": "financial_markets",
+      "kind": "pp",
+      "horizon": "weekly",
+      "sigma": 0.4122,
+      "threshold": 0.8243,
+      "n_samples": 52
+    },
+    "financial_sora_3m": {
+      "label": "SORA 3M compounded",
+      "page": "singapore",
+      "question": "financial_markets",
+      "kind": "pp",
+      "horizon": "weekly",
+      "sigma": 0.0206,
+      "threshold": 0.0413,
+      "n_samples": 52
+    },
+    "PH_10Y": {
+      "label": "Philippines 10Y yield",
+      "page": "regional",
+      "question": "financial_markets",
+      "kind": "pp",
+      "horizon": "weekly",
+      "sigma": 0.1777,
+      "threshold": 0.3554,
+      "n_samples": 20
+    },
+    "ID_10Y": {
+      "label": "Indonesia 10Y yield",
+      "page": "regional",
+      "question": "financial_markets",
+      "kind": "pp",
+      "horizon": "weekly",
+      "sigma": 0.0664,
+      "threshold": 0.1329,
+      "n_samples": 51
+    },
+    "GOLD": {
+      "label": "Gold",
+      "page": "regional",
+      "question": "financial_markets",
+      "kind": "pct",
+      "horizon": "weekly",
+      "sigma": 2.6382,
+      "threshold": 5.2763,
+      "n_samples": 35
+    }
+  }
+}

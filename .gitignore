@@ -1,10 +1,12 @@
-# Staging area for VPS rsync pulls — large, regenerable
-_vps_pull/
+# Source data — large (700+ MB once PortWatch downloads accumulate) and
+# regenerable from the source APIs by running scripts/energy/update_data.py.
+# Don't push to GitHub; rebuild locally. Use `data/*` (not `data/`) so the
+# exceptions below can re-include specific small curated configs.
+data/*
 
-# Source data — large (700+ MB) and regenerable from the upstream sources.
-# Don't push to GitHub; rebuild locally via scripts/refresh_data.py + the
-# migration script.
-data/
+# Exceptions: small curated configs that drive the pipeline and need to be
+# in the repo.
+!data/trigger_thresholds.json
 
 # Reference copies of the precursor dashboards — kept locally for visual
 # reference but not part of Iran Monitor itself.

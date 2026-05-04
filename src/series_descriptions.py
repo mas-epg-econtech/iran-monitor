@@ -640,6 +640,21 @@ SERIES_DESCRIPTIONS: dict[str, dict[str, str]] = {
     "regional_chem_imports_from_sg_th":   {"name": "Thailand",    "desc": "Thailand's monthly industrial-chemical imports from Singapore (SGD thousands). Source: SingStat via SG_Chemicals_DX."},
     "regional_chem_imports_from_sg_vn":   {"name": "Vietnam",     "desc": "Vietnam's monthly industrial-chemical imports from Singapore (SGD thousands). Source: SingStat via SG_Chemicals_DX."},
 
+    # Per-country monthly levels for refined petroleum (SITC 334) — alias of
+    # singstat_petroleum_export_monthly_<iso2>. Friendly names mirror the
+    # chemicals block above so each country gets its stable color from
+    # STABLE_PARTNER_COLORS in build_iran_monitor.py.
+    "regional_fuel_imports_from_sg_cn":   {"name": "China",       "desc": "China's monthly refined-petroleum imports from Singapore (SGD thousands). Source: SingStat via SG_Petroleum_DX."},
+    "regional_fuel_imports_from_sg_in":   {"name": "India",       "desc": "India's monthly refined-petroleum imports from Singapore (SGD thousands). Source: SingStat via SG_Petroleum_DX."},
+    "regional_fuel_imports_from_sg_id":   {"name": "Indonesia",   "desc": "Indonesia's monthly refined-petroleum imports from Singapore (SGD thousands). Source: SingStat via SG_Petroleum_DX."},
+    "regional_fuel_imports_from_sg_jp":   {"name": "Japan",       "desc": "Japan's monthly refined-petroleum imports from Singapore (SGD thousands). Source: SingStat via SG_Petroleum_DX."},
+    "regional_fuel_imports_from_sg_kr":   {"name": "South Korea", "desc": "South Korea's monthly refined-petroleum imports from Singapore (SGD thousands). Source: SingStat via SG_Petroleum_DX."},
+    "regional_fuel_imports_from_sg_my":   {"name": "Malaysia",    "desc": "Malaysia's monthly refined-petroleum imports from Singapore (SGD thousands). Source: SingStat via SG_Petroleum_DX."},
+    "regional_fuel_imports_from_sg_ph":   {"name": "Philippines", "desc": "Philippines' monthly refined-petroleum imports from Singapore (SGD thousands). Source: SingStat via SG_Petroleum_DX."},
+    "regional_fuel_imports_from_sg_tw":   {"name": "Taiwan",      "desc": "Taiwan's monthly refined-petroleum imports from Singapore (SGD thousands). Source: SingStat via SG_Petroleum_DX."},
+    "regional_fuel_imports_from_sg_th":   {"name": "Thailand",    "desc": "Thailand's monthly refined-petroleum imports from Singapore (SGD thousands). Source: SingStat via SG_Petroleum_DX."},
+    "regional_fuel_imports_from_sg_vn":   {"name": "Vietnam",     "desc": "Vietnam's monthly refined-petroleum imports from Singapore (SGD thousands). Source: SingStat via SG_Petroleum_DX."},
+
     # ════════════════════════════════════════════════════════════════════
     # SINGAPORE TRADE TAB — derived series for Sections 1-4
     # ════════════════════════════════════════════════════════════════════

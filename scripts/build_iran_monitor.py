@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import html
 import json
+import re
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -39,6 +40,80 @@ SINCE_DATE = "2021-01-01"   # Filter charts to data from this date onwards
 CRISIS_DATE = "2026-02-28"  # Hormuz crisis onset (a.k.a. WAR_START); used for annotation
 WAR_ZOOM_START = "2026-01-01"  # War-period view zoom start (~2 months pre-war for context)
 OUTPUT_DIR = ROOT
+
+# Short page-prefix used in deterministic chart IDs (see make_chart_id below).
+# Format is `<page>.<tab>.[<panel>.]<card>` so the LLM narrative system can
+# cite specific charts as anchor links that survive rebuilds.
+PAGE_ID_PREFIX = {
+    "global_shocks": "gs",
+    "singapore":     "sg",
+    "regional":      "rg",
+    "home":          "home",
+}
+
+# Default relevance tags for each (page, tab) combination — feeds the LLM
+# narrative system so each call knows which charts bear on which of the two
+# overarching questions:
+#   - "energy_supply"       — how concerned should we be about supply situation?
+#   - "financial_markets"   — are markets showing signs of tightening?
+# Sections / cards can override by setting their own `relevant_to` field;
+# tabs not listed here default to no relevance (the LLM ignores).
+TAB_RELEVANCE = {
+    "global_shocks.energy":              ["energy_supply"],
+    "global_shocks.shipping":            ["energy_supply"],
+    "singapore.prices":                  ["energy_supply"],
+    "singapore.sectoral_activity":       ["energy_supply"],
+    "singapore.trade":                   ["energy_supply"],
+    "singapore.shipping":                ["energy_supply"],
+    "singapore.financial_markets":       ["financial_markets"],
+    "regional.prices":                   ["energy_supply"],
+    "regional.sectoral_activity":        ["energy_supply"],
+    "regional.trade":                    ["energy_supply"],
+    "regional.shipping":                 ["energy_supply"],
+    "regional.financial_markets":        ["financial_markets"],   # default; commodity-section
+                                                                  # override below switches
+                                                                  # those cards to energy_supply.
+}
+
+
+# ---------------------------------------------------------------------------
+# Chart-ID helpers
+# ---------------------------------------------------------------------------
+def _slug_for_id(s: str) -> str:
+    """Lowercase, alphanumeric-only, underscores. Used as one segment of a
+    deterministic chart ID. Empty-string input → "x" (so we never produce
+    consecutive dots)."""
+    s = (s or "").lower()
+    s = re.sub(r"[^a-z0-9]+", "_", s)
+    s = s.strip("_")
+    return s or "x"
+
+
+def make_chart_id(page_prefix: str, tab_slug: str, card_slug: str,
+                  used: dict, panel_slug: str = "") -> str:
+    """Build a deterministic, collision-safe chart ID of form
+    `<page>.<tab>.[<panel>.]<card>`. Examples:
+        sg.activity.petroleum_refining
+        gs.energy.crude_oil
+        rg.shipping.cn.tankers           (panel = "cn" iso2 country code)
+        rg.trade.fuel.id_monthly         (panel = "fuel" view-selector key)
+
+    The same `used` dict (typically the page-level chart_state) is consulted
+    for collisions; on collision we append `_2`, `_3`, … . `panel_slug` is
+    optional and only inserted when the call site passes one (country panels
+    and view selectors).
+    """
+    parts = [page_prefix, _slug_for_id(tab_slug or "main")]
+    if panel_slug:
+        parts.append(_slug_for_id(panel_slug))
+    parts.append(_slug_for_id(card_slug))
+    base = ".".join(parts)
+    cid = base
+    n = 2
+    while cid in used:
+        cid = f"{base}_{n}"
+        n += 1
+    return cid
 
 
 # ---------------------------------------------------------------------------
@@ -658,7 +733,11 @@ def _get_trade_benchmarks(conn) -> dict:
     return _BENCHMARKS_CACHE
 
 
-def render_chart_grid(section: dict, conn, chart_state: dict, data_sources_state: dict, tab_slug: str | None = None) -> str:
+def render_chart_grid(section: dict, conn, chart_state: dict, data_sources_state: dict,
+                      tab_slug: str | None = None,
+                      page_prefix: str = "x",
+                      panel_slug: str = "",
+                      default_relevance: list[str] | None = None) -> str:
     """Render a chart_grid section.
 
     Two ways to specify the charts in this grid (can be combined in one section):
@@ -706,6 +785,11 @@ def render_chart_grid(section: dict, conn, chart_state: dict, data_sources_state
     # series name otherwise appears 3× per card: h3, chart title, legend).
     section_hide_chart_title = section.get("hide_chart_title")
     section_hide_legend      = section.get("hide_legend")
+    # Relevance for the LLM narrative pipeline. Section-level override wins
+    # over the tab-level default; per-card override (in the dict-node)
+    # wins over both. Charts with no relevance tag are passed through
+    # to the manifest with empty list — the LLM ignores them.
+    section_relevance = section.get("relevant_to") or default_relevance or []
     # Forward-fill sparse series in the chart so every dataset has a
     # value at every hovered x-coordinate. Required when one series is
     # much sparser than the others (e.g. PH 10Y auction quotes vs the
@@ -717,7 +801,8 @@ def render_chart_grid(section: dict, conn, chart_state: dict, data_sources_state
 
     def _emit(label: str, description: str, series_ids: list[str], base_prefix: str,
               card_benchmark_y: float | None = None, card_benchmark_label: str = "",
-              data_min_date: str | None = None):
+              data_min_date: str | None = None,
+              card_relevance: list[str] | None = None):
         """Resolve series_ids, split by unit if needed, and emit one or more chart cards.
 
         Title/description selection rules per emitted chart:
@@ -754,16 +839,20 @@ def render_chart_grid(section: dict, conn, chart_state: dict, data_sources_state
                 s["data"] = [(d, v) for (d, v) in s["data"] if d >= data_min_date]
             # Drop any series that became empty after clipping
             series_list = [s for s in series_list if s["data"]]
+        # Card relevance: per-card override > section override > tab default.
+        relevance = card_relevance if card_relevance is not None else section_relevance
         if not series_list:
             cards.append(_render_chart_card_for_series(
                 label, description, [],
                 chart_state, base_prefix, data_sources_state, tab_slug,
+                page_prefix=page_prefix, panel_slug=panel_slug,
                 chart_type=chart_type, x_axis_type=x_axis_type,
                 stacked=stacked, benchmark_y=bench_y, benchmark_label=bench_label,
                 zoom_button=section_zoom_button,
                 hide_chart_title=section_hide_chart_title,
                 hide_legend=section_hide_legend,
-                forward_fill=section_forward_fill))
+                forward_fill=section_forward_fill,
+                relevant_to=relevance))
             return
         # Skip auto-split-by-unit for category-axis charts — the bar layouts
         # are designed around per-card single-series sparse data.
@@ -783,10 +872,13 @@ def render_chart_grid(section: dict, conn, chart_state: dict, data_sources_state
                 _fname_l = fname.lower()
                 _label_l = label.lower()
                 only_one_card = (len(unit_groups) == 1 and len(sublist) == 1)
-                if (only_one_card
-                        or _fname_l == _label_l
-                        or _fname_l in _label_l
-                        or _label_l in _fname_l):
+                title_drops_suffix = (
+                    only_one_card
+                    or _fname_l == _label_l
+                    or _fname_l in _label_l
+                    or _label_l in _fname_l
+                )
+                if title_drops_suffix:
                     chart_title = label
                 else:
                     chart_title = f"{label} — {fname}"
@@ -799,7 +891,15 @@ def render_chart_grid(section: dict, conn, chart_state: dict, data_sources_state
                     chart_desc = sublist[0]["friendly_desc"]
                 else:
                     chart_desc = description
-                chart_prefix = f"{base_prefix}_{_unit_slug(fname)}"
+                # Mirror the title decision in the prefix: when the friendly_name
+                # is redundant with the label (so we dropped it from the title),
+                # don't append it to the chart-ID prefix either — otherwise we'd
+                # produce stuttering IDs like
+                # `sg.financial_markets.sora_3m_compounded_sora_3m_compounded`.
+                if title_drops_suffix:
+                    chart_prefix = base_prefix
+                else:
+                    chart_prefix = f"{base_prefix}_{_unit_slug(fname)}"
             elif unit is None:
                 # Single-unit group, no split, no friendly override
                 chart_title = label
@@ -816,12 +916,14 @@ def render_chart_grid(section: dict, conn, chart_state: dict, data_sources_state
             cards.append(_render_chart_card_for_series(
                 chart_title, chart_desc, sublist,
                 chart_state, chart_prefix, data_sources_state, tab_slug,
+                page_prefix=page_prefix, panel_slug=panel_slug,
                 chart_type=chart_type, x_axis_type=x_axis_type,
                 stacked=stacked, benchmark_y=bench_y, benchmark_label=bench_label,
                 zoom_button=section_zoom_button,
                 hide_chart_title=section_hide_chart_title,
                 hide_legend=section_hide_legend,
-                forward_fill=section_forward_fill))
+                forward_fill=section_forward_fill,
+                relevant_to=relevance))
 
     # Mode 1: ordered `nodes` list (mix of node refs and custom groups)
     for item in section.get("nodes", []):
@@ -842,9 +944,11 @@ def render_chart_grid(section: dict, conn, chart_state: dict, data_sources_state
                     item["label"], item.get("description", ""),
                     item["subcharts"], conn,
                     chart_state, base, data_sources_state, tab_slug,
+                    page_prefix=page_prefix, panel_slug=panel_slug,
                     zoom_button=section_zoom_button,
                     single_legend=bool(item.get("single_legend", False)
                                        or section.get("single_legend", False)),
+                    relevant_to=item.get("relevant_to") or section_relevance,
                 ))
                 continue
             _emit(
@@ -858,6 +962,9 @@ def render_chart_grid(section: dict, conn, chart_state: dict, data_sources_state
                 # date out of the chart entirely (per dashboard feedback for
                 # seasonal transport indicators starting Jan 2025).
                 data_min_date=item.get("data_min_date"),
+                # Per-card relevance override (rare — used e.g. for the regional
+                # commodity-prices section's per-card overrides).
+                card_relevance=item.get("relevant_to"),
             )
 
     # Mode 2: explicit series_groups tuples (kept for Regional Financial Markets)
@@ -952,6 +1059,8 @@ def _unit_slug(u: str) -> str:
 def _render_chart_card_for_series(title: str, description: str, series_list: list[dict],
                                    chart_state: dict, prefix: str, data_sources_state: dict,
                                    tab_slug: str | None = None,
+                                   page_prefix: str = "x",
+                                   panel_slug: str = "",
                                    chart_type: str = "line",
                                    x_axis_type: str = "time",
                                    stacked: bool = False,
@@ -960,8 +1069,12 @@ def _render_chart_card_for_series(title: str, description: str, series_list: lis
                                    zoom_button: bool = False,
                                    hide_chart_title: bool | None = None,
                                    hide_legend: bool | None = None,
-                                   forward_fill: bool = False) -> str:
+                                   forward_fill: bool = False,
+                                   relevant_to: list[str] | None = None) -> str:
     """Render one chart card from a pre-resolved series_list (no DB I/O inside).
+
+    Chart ID is deterministic: <page_prefix>.<tab_slug>.[<panel_slug>.]<prefix>.
+    See make_chart_id() — collisions get `_2`, `_3`, … suffixes.
 
     `hide_chart_title` and `hide_legend` default to None ("auto-decide"):
       - chart title is suppressed whenever the card has an <h3> above the
@@ -980,7 +1093,8 @@ def _render_chart_card_for_series(title: str, description: str, series_list: lis
           </div>
         </div>'''
 
-    chart_id = f"chart_{prefix}_{len(chart_state)}"
+    chart_id = make_chart_id(page_prefix, tab_slug or "", prefix, chart_state,
+                              panel_slug=panel_slug)
     chart_state[chart_id] = build_chart_config(title, series_list,
                                                 chart_type=chart_type,
                                                 x_axis_type=x_axis_type,
@@ -1004,11 +1118,16 @@ def _render_chart_card_for_series(title: str, description: str, series_list: lis
     title_safe = html.escape(title)
     desc_html = f'<p class="card-desc">{html.escape(description)}</p>' if description else ""
 
-    # Record series metadata for the page-level Data Sources table.
+    # Record series metadata for the page-level Data Sources table and the
+    # downstream summary-stats extractor (which is what the LLM narrative
+    # system consumes).
     data_sources_state[chart_id] = {
         "title": title,
+        "description": description or "",
         "series": series_list,
         "tab_slug": tab_slug,
+        "page_prefix": page_prefix,
+        "relevant_to": list(relevant_to or []),
     }
     # Mark charts that own their zoom so applyDateRange can skip them.
     if zoom_button:
@@ -1025,6 +1144,17 @@ def _render_chart_card_for_series(title: str, description: str, series_list: lis
         if zoom_button else ""
     )
 
+    # Visible chart-ID badge — small monospace tag at the BOTTOM of the card
+    # so it doesn't compete visually with the title. Lets the LLM narrative
+    # cite charts by ID and the reader visually match the citation. Click
+    # to copy the URL fragment to the clipboard.
+    chart_id_badge = (
+        f'<a class="chart-id-badge" href="#{chart_id}" '
+        f'data-chart-id="{chart_id}" title="Click to copy link to this chart">'
+        f'⌗ {chart_id}</a>'
+    )
+    badge_footer = f'<div class="chart-id-footer">{chart_id_badge}</div>'
+
     # Suppress the card-header div entirely when there's no title AND no
     # description (e.g., the FX/bond yields full-width single-card sections
     # where the section h2 is the only header needed).
@@ -1039,10 +1169,11 @@ def _render_chart_card_for_series(title: str, description: str, series_list: lis
         header_html = ""
 
     return f'''
-    <div class="chart-card">
+    <div class="chart-card" id="card-{chart_id}">
       {header_html}
       <div class="chart-container"><canvas id="{chart_id}"></canvas></div>
       {zoom_btn_html}
+      {badge_footer}
     </div>'''
 
 
@@ -1050,8 +1181,11 @@ def _render_chart_card_with_subcharts(
     title: str, description: str, subcharts: list[dict], conn,
     chart_state: dict, prefix: str, data_sources_state: dict,
     tab_slug: str | None = None,
+    page_prefix: str = "x",
+    panel_slug: str = "",
     zoom_button: bool = False,
     single_legend: bool = False,
+    relevant_to: list[str] | None = None,
 ) -> str:
     """Render ONE wide chart card containing multiple side-by-side sub-charts.
 
@@ -1075,11 +1209,28 @@ def _render_chart_card_with_subcharts(
     # Auto-fill benchmarks once (shared between subcharts)
     benchmarks = _get_trade_benchmarks(conn)
 
+    # Compute the parent card's deterministic chart-ID up front so subcharts
+    # can reference it (parent_chart_id field on each subchart entry, plus
+    # the parent's own data_sources_state entry registered after the loop).
+    parent_chart_id_parts = [page_prefix, _slug_for_id(tab_slug or "main")]
+    if panel_slug:
+        parent_chart_id_parts.append(_slug_for_id(panel_slug))
+    parent_chart_id_parts.append(_slug_for_id(prefix))
+    parent_chart_id = ".".join(parent_chart_id_parts)
+
     # Collect (label, color) pairs across all subcharts for the optional
     # single shared legend at the card header. Dedupe by label, preserve
     # first-seen order — so the legend reflects the first subchart's
     # ordering plus any new labels (e.g. "Others") added in later subcharts.
     legend_seen: dict[str, str] = {}
+    # Aggregate subchart-level info so we can register the PARENT card in
+    # data_sources_state at the end of the loop. Without this, multi-subchart
+    # cards (SG Trade SITC × 6, Shipping tankers/containers, etc.) wouldn't
+    # appear in the manifest at all — only their subchart entries would,
+    # and the summary-stats extractor skips entries with parent_chart_id.
+    parent_series_acc: list[dict] = []
+    parent_series_seen: set[str]   = set()
+    subchart_meta: list[dict]      = []
 
     sub_html_blocks = []
     for sub_idx, sub in enumerate(subcharts):
@@ -1108,7 +1259,11 @@ def _render_chart_card_with_subcharts(
             )
             continue
 
-        sub_chart_id = f"chart_{prefix}_sub{sub_idx}_{len(chart_state)}"
+        # Subchart ID uses the parent card slug + the subchart's subtitle as
+        # additional segments — stable across rebuilds.
+        sub_card_slug = f"{prefix}__{_slug_for_id(subtitle) or f'sub{sub_idx}'}"
+        sub_chart_id = make_chart_id(page_prefix, tab_slug or "", sub_card_slug,
+                                      chart_state, panel_slug=panel_slug)
         # Don't show the Chart.js title (we use the subtitle h4 as the label)
         chart_state[sub_chart_id] = build_chart_config(
             "", series_list,
@@ -1142,13 +1297,32 @@ def _render_chart_card_with_subcharts(
         # Register every subchart in data_sources_state so the
         # page-bottom Sources panel still picks up its series.
         data_sources_state[sub_chart_id] = {
-            "title":     f"{title} — {subtitle}",
-            "series":    series_list,
-            "tab_slug":  tab_slug,
+            "title":       f"{title} — {subtitle}",
+            "description": description or "",
+            "series":      series_list,
+            "tab_slug":    tab_slug,
+            "page_prefix": page_prefix,
+            "relevant_to": list(relevant_to or []),
+            "parent_chart_id": parent_chart_id,
         }
         # Mark subcharts with their own zoom button so applyDateRange skips them.
         if zoom_button:
             data_sources_state[sub_chart_id]["_no_default_zoom"] = True
+
+        # Accumulate subchart info for the parent's manifest entry. The
+        # parent card_id is what the LLM cites; without this, multi-subchart
+        # cards wouldn't appear in summary_stats.json at all (the extractor
+        # filters out entries with parent_chart_id).
+        for s in series_list:
+            sid = s.get("series_id")
+            if sid and sid not in parent_series_seen:
+                parent_series_seen.add(sid)
+                parent_series_acc.append(s)
+        subchart_meta.append({
+            "subtitle":   subtitle,
+            "subchart_id": sub_chart_id,
+            "series_ids": [s.get("series_id") for s in series_list if s.get("series_id")],
+        })
 
         sub_zoom_btn = (
             f'<div class="chart-actions"><button class="zoom-toggle-btn active" '
@@ -1185,8 +1359,31 @@ def _render_chart_card_with_subcharts(
         )
         legend_html = f'<div class="card-legend">{items}</div>'
 
+    parent_badge = (
+        f'<a class="chart-id-badge" href="#card-{parent_chart_id}" '
+        f'data-chart-id="{parent_chart_id}" title="Click to copy link to this card">'
+        f'⌗ {parent_chart_id}</a>'
+    )
+
+    # Register the PARENT card as its own manifest entry — gives the LLM
+    # narrative system one row to cite (e.g. `sg.trade.crude_petroleum_oils`)
+    # rather than asking it to navigate from subchart canvas IDs back up
+    # to the parent. The parent's series_ids is the union across subcharts;
+    # `subchart_meta` lets the summary-stats extractor compute pair-aware
+    # signals (e.g. nowcast actual-vs-counterfactual gaps) per subchart.
+    if parent_series_acc:
+        data_sources_state[parent_chart_id] = {
+            "title":         title,
+            "description":   description or "",
+            "series":        parent_series_acc,
+            "tab_slug":      tab_slug,
+            "page_prefix":   page_prefix,
+            "relevant_to":   list(relevant_to or []),
+            "subchart_meta": subchart_meta,
+        }
+
     return f'''
-    <div class="chart-card chart-card-multi">
+    <div class="chart-card chart-card-multi" id="card-{parent_chart_id}">
       <div class="card-header">
         <h3>{title_safe}</h3>
         {desc_html}
@@ -1195,10 +1392,12 @@ def _render_chart_card_with_subcharts(
       <div class="subchart-grid"{grid_style}>
         {"".join(sub_html_blocks)}
       </div>
+      <div class="chart-id-footer">{parent_badge}</div>
     </div>'''
 
 
-def render_tab_group(section: dict, conn, chart_state: dict, data_sources_state: dict) -> str:
+def render_tab_group(section: dict, conn, chart_state: dict, data_sources_state: dict,
+                     page_prefix: str = "x", page_slug: str = "") -> str:
     tabs = section["tabs"]
     nav_html = ""
     panels_html = ""
@@ -1209,11 +1408,16 @@ def render_tab_group(section: dict, conn, chart_state: dict, data_sources_state:
         # the button so the tab-switching JS can hide the .date-range-bar.
         hide_zoom_attr = ' data-hide-date-range="true"' if tab.get("hide_date_range") else ''
         nav_html += f'<button class="tab-btn{active_cls}" data-tab="{tab["slug"]}"{hide_zoom_attr} onclick="switchTab(this, \'{tab["slug"]}\')">{tab["label"]}</button>'
+        # Look up default LLM-narrative relevance for this (page, tab) combo.
+        # Section-level / per-card overrides will still win below.
+        tab_relevance = TAB_RELEVANCE.get(f"{page_slug}.{tab['slug']}", []) if page_slug else []
         sub_inner = ""
         for sub in tab.get("subsections", []):
             t = sub["type"]
             if t == "chart_grid":
-                sub_inner += render_chart_grid(sub, conn, chart_state, data_sources_state, tab_slug=tab["slug"])
+                sub_inner += render_chart_grid(sub, conn, chart_state, data_sources_state,
+                                                tab_slug=tab["slug"], page_prefix=page_prefix,
+                                                default_relevance=tab_relevance)
             elif t == "shipping_iframe":
                 sub_inner += render_shipping_iframe(sub)
             elif t == "placeholder":
@@ -1221,11 +1425,17 @@ def render_tab_group(section: dict, conn, chart_state: dict, data_sources_state:
             elif t == "pdf_cards":
                 sub_inner += render_pdf_cards(sub)
             elif t == "country_panels":
-                sub_inner += render_country_panels(sub, conn, chart_state, data_sources_state, tab_slug=tab["slug"])
+                sub_inner += render_country_panels(sub, conn, chart_state, data_sources_state,
+                                                    tab_slug=tab["slug"], page_prefix=page_prefix,
+                                                    default_relevance=tab_relevance)
             elif t == "country_share_comparison":
-                sub_inner += render_country_share_comparison(sub, conn, chart_state, data_sources_state, tab_slug=tab["slug"])
+                sub_inner += render_country_share_comparison(sub, conn, chart_state, data_sources_state,
+                                                              tab_slug=tab["slug"], page_prefix=page_prefix,
+                                                              default_relevance=tab_relevance)
             elif t == "view_selector":
-                sub_inner += render_view_selector(sub, conn, chart_state, data_sources_state, tab_slug=tab["slug"])
+                sub_inner += render_view_selector(sub, conn, chart_state, data_sources_state,
+                                                   tab_slug=tab["slug"], page_prefix=page_prefix,
+                                                   default_relevance=tab_relevance)
         panels_html += f'<div class="tab-panel{active_cls}" id="tab-{tab["slug"]}">{sub_inner}</div>'
     return f'''
     <section class="page-section">
@@ -1277,6 +1487,8 @@ def _expand_country_template(template: dict, iso2: str, country_label: str) -> d
 def render_view_selector(
     section: dict, conn, chart_state: dict, data_sources_state: dict,
     tab_slug: str | None = None,
+    page_prefix: str = "x",
+    default_relevance: list[str] | None = None,
 ) -> str:
     """Render a section that wraps N "views", with a dropdown to switch
     between them. Each view contains its own list of subsections (any
@@ -1309,14 +1521,23 @@ def render_view_selector(
     panels_html = ""
     for v in views:
         active = v["key"] == default_key
+        # Each view becomes its own panel_slug so chart IDs include the view
+        # key (e.g. rg.trade.fuel.id_monthly vs rg.trade.chem.id_monthly).
+        view_panel_slug = v["key"]
         # Render the view's subsections via the same dispatcher used by tabs.
         inner = ""
         for sub in v.get("subsections", []):
             t = sub.get("type")
             if t == "chart_grid":
-                inner += render_chart_grid(sub, conn, chart_state, data_sources_state, tab_slug=tab_slug)
+                inner += render_chart_grid(sub, conn, chart_state, data_sources_state,
+                                            tab_slug=tab_slug, page_prefix=page_prefix,
+                                            panel_slug=view_panel_slug,
+                                            default_relevance=default_relevance)
             elif t == "country_share_comparison":
-                inner += render_country_share_comparison(sub, conn, chart_state, data_sources_state, tab_slug=tab_slug)
+                inner += render_country_share_comparison(sub, conn, chart_state, data_sources_state,
+                                                          tab_slug=tab_slug, page_prefix=page_prefix,
+                                                          panel_slug=view_panel_slug,
+                                                          default_relevance=default_relevance)
             elif t == "placeholder":
                 inner += render_placeholder(sub)
         style = "" if active else ' style="display: none;"'
@@ -1343,6 +1564,9 @@ def render_view_selector(
 def render_country_share_comparison(
     section: dict, conn, chart_state: dict, data_sources_state: dict,
     tab_slug: str | None = None,
+    page_prefix: str = "x",
+    panel_slug: str = "",
+    default_relevance: list[str] | None = None,
 ) -> str:
     """Render a single grouped-bar chart that compares one share metric
     across N countries × M time periods.
@@ -1392,7 +1616,11 @@ def render_country_share_comparison(
             "borderWidth":     1,
         })
 
-    chart_id = f"chart_{(section.get('slug') or 'country_share_comp')}_{len(chart_state)}"
+    chart_id = make_chart_id(
+        page_prefix, tab_slug or "",
+        section.get("slug") or "country_share_comp",
+        chart_state, panel_slug=panel_slug,
+    )
     chart_state[chart_id] = {
         "type": "bar",
         "data": {
@@ -1436,6 +1664,7 @@ def render_country_share_comparison(
     unit_row = src_row[2] if src_row else unit
     data_sources_state[chart_id] = {
         "title": title,
+        "description": desc or "",
         "series": [
             {"series_id":   sid_template.format(key=k.lower()),
              "series_name": f"{lbl} — SG share of industrial chemical imports",
@@ -1447,9 +1676,15 @@ def render_country_share_comparison(
             for lbl, k in categories
         ],
         "tab_slug": tab_slug,
+        "page_prefix": page_prefix,
+        "relevant_to": list(section.get("relevant_to") or default_relevance or []),
     }
 
     desc_html = f'<p class="section-desc">{html.escape(desc)}</p>' if desc else ""
+    badge = (
+        f'<a class="chart-id-badge" href="#{chart_id}" data-chart-id="{chart_id}" '
+        f'title="Click to copy link to this chart">⌗ {chart_id}</a>'
+    )
     return f'''
     <section class="page-section">
       <div class="section-header">
@@ -1457,15 +1692,18 @@ def render_country_share_comparison(
         {desc_html}
       </div>
       <div class="chart-grid chart-grid-single" style="grid-template-columns: 1fr;">
-        <div class="chart-card">
+        <div class="chart-card" id="card-{chart_id}">
           <div class="chart-container" style="height: 360px;"><canvas id="{chart_id}"></canvas></div>
+          <div class="chart-id-footer">{badge}</div>
         </div>
       </div>
     </section>'''
 
 
 def render_country_panels(section: dict, conn, chart_state: dict,
-                          data_sources_state: dict, tab_slug: str | None = None) -> str:
+                          data_sources_state: dict, tab_slug: str | None = None,
+                          page_prefix: str = "x",
+                          default_relevance: list[str] | None = None) -> str:
     """Render a country selector + N country panels in one section.
 
     Each country panel contains the same set of chart_grid subsections,
@@ -1505,7 +1743,9 @@ def render_country_panels(section: dict, conn, chart_state: dict,
             t = sub.get("type")
             if t == "chart_grid":
                 per_country_inner += render_chart_grid(
-                    sub, conn, chart_state, data_sources_state, tab_slug=tab_slug
+                    sub, conn, chart_state, data_sources_state,
+                    tab_slug=tab_slug, page_prefix=page_prefix, panel_slug=iso2,
+                    default_relevance=default_relevance,
                 )
             # (No other subsection types currently used inside country_panels —
             # add elif branches here if needed.)
@@ -1608,6 +1848,327 @@ def render_pdf_cards(section: dict) -> str:
 # ---------------------------------------------------------------------------
 # Narrative renderer
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# LLM narrative renderer (status indicators + per-page summaries)
+# ---------------------------------------------------------------------------
+# Pulls outputs from the metadata table written by scripts/generate_narratives.py
+# and renders them as visually-striking status badges (landing page) and
+# tight per-page summary cards (top of each page). See METHODOLOGY.md §7.
+
+# Color-coded by level. Pulled from prompts/synthesizer.md.
+_STATUS_LEVELS = {
+    "calm":     {"label": "Calm",     "color": "#10b981"},   # green
+    "watchful": {"label": "Watchful", "color": "#f59e0b"},   # amber
+    "strained": {"label": "Strained", "color": "#f97316"},   # orange
+    "critical": {"label": "Critical", "color": "#ef4444"},   # red
+}
+# Display order — least to most concerning, used by the stepper-pill scale.
+_STATUS_LEVEL_ORDER = ["calm", "watchful", "strained", "critical"]
+
+# Map page prefix → display label for cross-page citations in the synthesizer's
+# expandable_refs. Inverse of PAGE_ID_PREFIX.
+_PAGE_PREFIX_TO_FILE = {
+    "gs":      "global_shocks.html",
+    "sg":      "singapore.html",
+    "rg":      "regional.html",
+    "home":    "index.html",
+}
+
+
+def _load_narrative(conn, key: str) -> dict | None:
+    """Fetch a narrative payload from metadata. The orchestrator stores each
+    output as JSON wrapped in `{"updated_at": ..., "payload": ...}` —
+    return the unwrapped inner payload, or None when the key is missing /
+    malformed."""
+    row = conn.execute(
+        "SELECT value FROM metadata WHERE key = ?", (key,)
+    ).fetchone()
+    if not row or not row["value"]:
+        return None
+    try:
+        wrapped = json.loads(row["value"])
+    except (json.JSONDecodeError, TypeError):
+        return None
+    if isinstance(wrapped, dict) and "payload" in wrapped:
+        return wrapped.get("payload")
+    return wrapped if isinstance(wrapped, dict) else None
+
+
+def _chart_id_anchor(chart_id: str, same_page: bool) -> str:
+    """Build an anchor URL for a chart_id. When same_page is True (used by
+    page-summary findings), produces just `#card-<id>`. When False (used by
+    landing-page synthesizer refs), produces `<page_file>#card-<id>` so the
+    link cross-navigates to the chart's owning page."""
+    if same_page:
+        return f"#card-{chart_id}"
+    page_prefix = chart_id.split(".", 1)[0] if "." in chart_id else "home"
+    return f"{_PAGE_PREFIX_TO_FILE.get(page_prefix, 'index.html')}#card-{chart_id}"
+
+
+def _render_chart_id_badge(chart_id: str, same_page: bool) -> str:
+    """Inline monospace badge linking to a chart anchor. Used in page-summary
+    finding bullets and in synthesizer expandable_refs."""
+    return (f'<a class="chart-ref-badge" href="{_chart_id_anchor(chart_id, same_page)}">'
+            f'⌗ {html.escape(chart_id)}</a>')
+
+
+def render_status_indicators(section: dict, conn) -> str:
+    """Render the two big colored status badges on the landing page.
+    Reads `narrative_synthesizer` from metadata; falls back to a placeholder
+    when the narrative pipeline hasn't been run yet."""
+    payload = _load_narrative(conn, "narrative_synthesizer")
+    if not payload:
+        return f'''
+        <section class="status-indicators status-indicators--placeholder">
+          <p class="muted">Status indicators will appear here once the LLM narrative
+          pipeline has been run (<code>scripts/generate_narratives.py</code>).</p>
+        </section>'''
+
+    questions = [
+        ("energy_supply",     "Energy supply"),
+        ("financial_markets", "Financial markets"),
+    ]
+
+    cards_html = ""
+    for q_key, q_label in questions:
+        block = payload.get(q_key) or {}
+        level = (block.get("level") or "").lower()
+        meta = _STATUS_LEVELS.get(level, {"label": level.title() or "—",
+                                           "color": "#6b7280"})
+        narrative = block.get("narrative") or ""
+        drivers   = block.get("drivers")   or []
+
+        # Drivers — each is `{text, chart_ids}`. Render as a bullet with the
+        # text and inline chart-id badges that cross-navigate to the chart's
+        # owning page (same UX as per-page summary findings, just cross-page
+        # rather than same-page anchors).
+        drivers_html = ""
+        for d in drivers:
+            # Tolerate the older-shape schema (string-only drivers) so we
+            # don't crash if an old narrative payload is still in the DB —
+            # just render the string with no chart citations.
+            if isinstance(d, str):
+                drivers_html += f'<li class="status-driver"><p class="status-driver-text">{html.escape(d)}</p></li>'
+                continue
+            text       = html.escape(d.get("text", "") or "")
+            chart_ids  = d.get("chart_ids", []) or []
+            badges = "".join(
+                _render_chart_id_badge(cid, same_page=False) for cid in chart_ids
+            )
+            drivers_html += (
+                f'<li class="status-driver">'
+                f'<p class="status-driver-text">{text}</p>'
+                + (f'<div class="status-driver-refs">{badges}</div>' if badges else '')
+                + '</li>'
+            )
+        # Collapsible — closed by default to keep the landing-page status
+        # card compact. Click to expand the driver list.
+        drivers_block = (
+            f'<details class="collapsible-section">'
+            f'<summary class="collapsible-title">Key Drivers <span class="collapsible-count">({len(drivers)})</span></summary>'
+            f'<ul class="status-drivers">{drivers_html}</ul>'
+            f'</details>'
+        ) if drivers else ""
+
+        # Stepper pills: render all 4 levels in order, with the current one
+        # highlighted. Lets the viewer see where the current level sits
+        # within the full scale (Calm → Watchful → Strained → Critical).
+        steps_html = ""
+        for i, lvl_key in enumerate(_STATUS_LEVEL_ORDER):
+            lvl_meta = _STATUS_LEVELS[lvl_key]
+            is_active = (lvl_key == level)
+            cls = f"scale-step scale-step--{lvl_key}"
+            if is_active:
+                cls += " scale-step--active"
+            steps_html += (
+                f'<div class="{cls}" style="--step-color: {lvl_meta["color"]};">'
+                f'{html.escape(lvl_meta["label"])}</div>'
+            )
+            # Subtle chevron between steps (skip after the last)
+            if i < len(_STATUS_LEVEL_ORDER) - 1:
+                steps_html += '<span class="scale-chevron" aria-hidden="true">›</span>'
+
+        cards_html += f'''
+        <div class="status-card status-card--{level}" style="--status-color: {meta['color']};">
+          <div class="status-header">
+            <span class="status-question">{html.escape(q_label)}</span>
+            <span class="status-level">{html.escape(meta['label'])}</span>
+          </div>
+          <div class="status-scale" role="meter" aria-label="{html.escape(q_label)} level"
+               aria-valuemin="1" aria-valuemax="{len(_STATUS_LEVEL_ORDER)}"
+               aria-valuenow="{_STATUS_LEVEL_ORDER.index(level) + 1 if level in _STATUS_LEVEL_ORDER else 0}">
+            {steps_html}
+          </div>
+          <div class="status-section-title">Overview</div>
+          <p class="status-narrative">{html.escape(narrative)}</p>
+          {drivers_block}
+        </div>'''
+
+    as_of = payload.get("as_of_date") or ""
+    meta_line = f'Snapshot as of {html.escape(as_of)}' if as_of else ''
+
+    return f'''
+    <section class="status-indicators">
+      <div class="status-grid">
+        {cards_html}
+      </div>
+      <p class="status-meta">{meta_line}</p>
+    </section>'''
+
+
+def render_page_summary(section: dict, conn, page_slug: str) -> str:
+    """Render the LLM-generated per-page summary card at the top of each page.
+    Tight 2-3 sentence summary + bullet list of key_findings, each finding
+    with inline chart_id badges linking to its anchors on the same page."""
+    payload = _load_narrative(conn, f"narrative_{page_slug}")
+    if not payload:
+        return ""   # silent skip when narrative not generated yet
+
+    questions = [
+        ("energy_supply",     "Energy supply"),
+        ("financial_markets", "Financial markets"),
+    ]
+
+    blocks_html = ""
+    for q_key, q_label in questions:
+        block = payload.get(q_key)
+        if not block:
+            continue   # this question doesn't apply on this page
+        summary = block.get("summary") or ""
+        findings = block.get("key_findings") or []
+        gaps     = block.get("data_gaps")    or []
+        # `concern_score` is intentionally not rendered — kept as an internal
+        # signal that feeds the synthesizer's threshold rules. Showing it
+        # per-page would compete with the synthesized landing-page level
+        # (Calm/Watchful/Strained/Critical) and confuse viewers since a
+        # page-level score doesn't always map to the landing-page level.
+
+        # Key-finding bullets — each finding text + inline chart-id badges
+        findings_html = ""
+        for f in findings:
+            text = html.escape(f.get("finding", "") or "")
+            chart_ids = f.get("chart_ids", []) or []
+            badges = "".join(
+                _render_chart_id_badge(cid, same_page=True) for cid in chart_ids
+            )
+            findings_html += f'''
+              <li class="ps-finding">
+                <p class="ps-finding-text">{text}</p>
+                {f'<div class="ps-finding-refs">{badges}</div>' if badges else ''}
+              </li>'''
+
+        # Data gaps as expandable footer — same styling as Key Drivers for visual symmetry.
+        gaps_html = ""
+        if gaps:
+            gap_items = "".join(
+                f'<li>{html.escape(g)}</li>' for g in gaps
+            )
+            gaps_html = f'''
+              <details class="collapsible-section ps-gaps">
+                <summary class="collapsible-title">Data Gaps <span class="collapsible-count">({len(gaps)})</span></summary>
+                <ul class="ps-gaps-list">{gap_items}</ul>
+              </details>'''
+
+        blocks_html += f'''
+          <div class="ps-block">
+            <div class="ps-header">
+              <h2>{html.escape(q_label)}</h2>
+            </div>
+            <div class="ps-section-title">Overview</div>
+            <p class="ps-summary">{html.escape(summary)}</p>
+            <details class="collapsible-section">
+              <summary class="collapsible-title">Key Drivers <span class="collapsible-count">({len(findings)})</span></summary>
+              <ul class="ps-findings">{findings_html}</ul>
+            </details>
+            {gaps_html}
+          </div>'''
+
+    if not blocks_html:
+        return ""
+
+    return f'''
+    <section class="page-summary">
+      <div class="ps-grid">
+        {blocks_html}
+      </div>
+    </section>'''
+
+
+def render_ai_methodology(section: dict) -> str:
+    """Render the AI-disclosure + methodology footer on the landing page.
+    Collapsible (closed by default) so viewers see a tight one-line
+    disclosure but can expand for the full methodology if interested."""
+    return '''
+    <section class="ai-methodology">
+      <details class="ai-method-details">
+        <summary class="ai-method-summary">
+          <span class="ai-method-icon">✦</span>
+          <span class="ai-method-title">The analysis above is AI-generated.</span>
+          <span class="ai-method-cta">Click to find out how <span class="ai-method-arrow">→</span></span>
+        </summary>
+        <div class="ai-method-body">
+          <p>
+            The dashboard pipeline uses Anthropic's Claude Sonnet 4.6 in a
+            structured, deterministic flow. There are four AI calls per
+            refresh, all run at temperature zero so the same inputs
+            produce the same reads run-to-run.
+          </p>
+
+          <h4 class="ai-method-step-title">1 · Pre-compute summary statistics</h4>
+          <p>
+            Before any AI is called, a deterministic step walks every
+            chart on every page and extracts a fixed set of statistics —
+            current value versus the pre-war baseline, 4-week and 12-week
+            momentum, the war-period range, where in that range the latest
+            print sits, staleness flags, and shipping nowcast actual-vs-
+            counterfactual gaps. This guarantees the AI only sees
+            structured numbers and never has to "read" a chart.
+          </p>
+
+          <h4 class="ai-method-step-title">2 · Per-page reads</h4>
+          <p>
+            Three independent AI calls — one each for Global Shocks,
+            Singapore, and Regional — receive only their page's summary
+            statistics plus a strict prompt. Each produces a structured
+            output: a 2-3 sentence overview and 3-5 key drivers per
+            question (energy supply, financial markets), where every
+            finding cites the specific charts that support it. Those
+            citations become the clickable badges in the Key Drivers
+            sections.
+          </p>
+
+          <h4 class="ai-method-step-title">3 · Synthesizer</h4>
+          <p>
+            A fourth AI call takes the three page outputs (not the raw
+            data) and produces the landing-page status badges and
+            narratives. The 4-level scale (Calm / Watchful / Strained /
+            Critical) is a judgement call by the AI based on the full
+            pattern of page-level findings, anchored against worked
+            calibration examples baked into the prompt for each level.
+            The narrative and drivers are the AI's synthesis, written
+            for an MAS audience.
+          </p>
+
+          <h4 class="ai-method-step-title">4 · Guardrails</h4>
+          <p>
+            Prompts forbid policy speculation and historical comparisons
+            not visible in the data. Every claim must cite a chart on
+            the dashboard, and stale series must be named as such. The
+            chart citations are the audit trail — click any of them to
+            jump directly to the underlying chart and verify.
+          </p>
+
+          <p class="ai-method-caveat">
+            AI can still be wrong. Treat the narratives as a structured
+            first read, not a final word — verify the key drivers via
+            the chart citations, especially before they leave the
+            building.
+          </p>
+        </div>
+      </details>
+    </section>'''
+
+
 def render_narrative(page_def: dict, conn) -> str:
     src = page_def.get("narrative_source", "placeholder")
     placeholder_text = page_def.get("narrative_placeholder", "Key takeaways will appear here.")
@@ -1660,18 +2221,53 @@ def render_nav(active_slug: str) -> str:
     return f'<nav class="topnav">{"".join(items)}</nav>'
 
 
-def render_page(slug: str, page_def: dict, conn) -> str:
+def render_page(slug: str, page_def: dict, conn) -> tuple[str, dict]:
+    """Render one page. Returns (html, data_sources_state) — the second is the
+    chart manifest used by compute_summary_stats.py to feed the LLM narrative
+    pipeline. data_sources_state is keyed by chart_id with title / description /
+    series / tab_slug / page_prefix per chart."""
     chart_state: dict = {}
     data_sources_state: dict = {}
     sections_html = []
+    # Resolve the page-level chart-ID prefix (e.g. "sg" for singapore) so all
+    # chart IDs on this page begin with it. Falls back to "x" for unknown
+    # slugs (kept defensive — every page should be in PAGE_ID_PREFIX).
+    page_prefix = PAGE_ID_PREFIX.get(slug, "x")
+
+    # Insert the page-wide date-range bar (zoom toggle) into the sections
+    # list rather than the chrome, so it can sit AFTER the LLM page_summary
+    # but BEFORE the first chart-bearing section. Determine up front whether
+    # the page actually has charts (presence of chart_grid or tab_group in
+    # the layout); only then is the bar useful.
+    section_types  = [s.get("type") for s in page_def["sections"]]
+    has_charts     = any(t in ("chart_grid", "tab_group") for t in section_types)
+    bar_inserted   = False
+
+    def _ensure_date_range_bar():
+        nonlocal bar_inserted
+        if has_charts and not bar_inserted:
+            sections_html.append(render_date_range_bar())
+            bar_inserted = True
+
     for section in page_def["sections"]:
         t = section["type"]
         if t == "landing_cards":
             sections_html.append(render_landing_cards())
+        elif t == "status_indicators":
+            sections_html.append(render_status_indicators(section, conn))
+        elif t == "ai_methodology":
+            sections_html.append(render_ai_methodology(section))
+        elif t == "page_summary":
+            sections_html.append(render_page_summary(section, conn, slug))
+            _ensure_date_range_bar()    # zoom toggle goes right after the LLM summary
         elif t == "chart_grid":
-            sections_html.append(render_chart_grid(section, conn, chart_state, data_sources_state))
+            _ensure_date_range_bar()    # safety net if no page_summary above
+            sections_html.append(render_chart_grid(section, conn, chart_state, data_sources_state,
+                                                    page_prefix=page_prefix))
         elif t == "tab_group":
-            sections_html.append(render_tab_group(section, conn, chart_state, data_sources_state))
+            _ensure_date_range_bar()
+            sections_html.append(render_tab_group(section, conn, chart_state, data_sources_state,
+                                                   page_prefix=page_prefix, page_slug=slug))
         elif t == "shipping_iframe":
             sections_html.append(render_shipping_iframe(section))
         elif t == "placeholder":
@@ -1680,7 +2276,13 @@ def render_page(slug: str, page_def: dict, conn) -> str:
             sections_html.append(render_pdf_cards(section))
 
     nav_html = render_nav(slug)
-    narrative_html = render_narrative(page_def, conn)
+    # The legacy "Key takeaways" placeholder block is now redundant — the
+    # `status_indicators` section on the landing page and the `page_summary`
+    # section at the top of each content page do this work via the LLM
+    # narrative pipeline. Set to empty so the BASE_TEMPLATE {narrative}
+    # slot collapses; render_narrative() is kept as dead code for now in
+    # case we want to revive a placeholder for new pages later.
+    narrative_html = ""
     chart_init_js = json.dumps(chart_state)
     # Surface the set of chart IDs that own their own zoom (per-chart Zoom
     # In/Out button) — applyDateRange skips them so the page-level "war"
@@ -1693,15 +2295,18 @@ def render_page(slug: str, page_def: dict, conn) -> str:
     title = page_def["title"]
     subtitle = page_def.get("subtitle", "")
 
-    # Show the date-range bar only on pages that actually have charts.
-    date_range_bar_html = render_date_range_bar() if chart_state else ""
+    # date_range_bar is now inserted into the sections list above (after
+    # page_summary if present, else just before the first chart section).
+    # The BASE_TEMPLATE {date_range_bar} placeholder is unused — kept blank
+    # for backward-compat with any older template references.
+    date_range_bar_html = ""
 
     # Collapsible Data sources table at the bottom (only on pages with charts).
     data_sources_html = render_data_sources_section(data_sources_state) if data_sources_state else ""
 
     built_at = datetime.now().strftime("%Y-%m-%d %H:%M")
 
-    return BASE_TEMPLATE.format(
+    rendered_html = BASE_TEMPLATE.format(
         title=title,
         subtitle=subtitle,
         nav=nav_html,
@@ -1713,6 +2318,7 @@ def render_page(slug: str, page_def: dict, conn) -> str:
         no_default_zoom_ids=no_default_zoom_js,
         built_at=built_at,
     )
+    return rendered_html, data_sources_state
 
 
 def render_data_sources_section(data_sources_state: dict) -> str:
@@ -1726,6 +2332,13 @@ def render_data_sources_section(data_sources_state: dict) -> str:
 
     rows = []
     for chart_id, info in data_sources_state.items():
+        # Skip parent entries for multi-subchart cards (those carry
+        # `subchart_meta`). Their constituent subchart entries are already
+        # listed below — listing the parent too would duplicate every
+        # underlying series. Parent entries exist only so the LLM
+        # narrative pipeline can cite the umbrella card_id.
+        if info.get("subchart_meta"):
+            continue
         chart_title = html.escape(info["title"])
         tab_slug = info.get("tab_slug") or ""
         tab_attr = f' data-tab="{html.escape(tab_slug)}"' if tab_slug else ''
@@ -1939,6 +2552,456 @@ BASE_TEMPLATE = '''<!DOCTYPE html>
     .card-header {{ margin-bottom: 0.75rem; }}
     .card-header h3 {{ margin: 0 0 0.25rem; font-size: 0.98rem; color: var(--accent); font-weight: 600; }}
     .card-desc {{ margin: 0; font-size: 0.83rem; color: var(--text-muted); line-height: 1.5; max-width: 64ch; }}
+
+    /* Visible chart-ID badge — surfaces the deterministic chart ID (e.g.
+       ⌗ sg.activity.petroleum_refining) so the LLM narrative system can
+       cite charts and the reader can match the citation. Lives in a
+       footer at the bottom of each card — quiet by default, click-to-copy
+       the URL fragment. */
+    .chart-id-footer {{
+      margin-top: 0.6rem;
+      text-align: right;
+      line-height: 1;
+    }}
+    .chart-id-badge {{
+      display: inline-block;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.66rem;
+      color: rgba(224, 230, 239, 0.28);
+      background: transparent;
+      border: 1px solid rgba(224, 230, 239, 0.05);
+      border-radius: 4px;
+      padding: 0.08rem 0.4rem;
+      text-decoration: none;
+      letter-spacing: 0.02em;
+      transition: color 0.15s, background 0.15s, border-color 0.15s;
+    }}
+    .chart-card:hover .chart-id-badge {{
+      color: rgba(224, 230, 239, 0.5);
+      border-color: rgba(224, 230, 239, 0.12);
+    }}
+    .chart-id-badge:hover {{
+      color: var(--accent) !important;
+      background: rgba(240, 208, 138, 0.08);
+      border-color: rgba(240, 208, 138, 0.25) !important;
+    }}
+    .chart-id-badge.copied {{
+      color: #10b981 !important;
+      background: rgba(16, 185, 129, 0.1);
+      border-color: rgba(16, 185, 129, 0.35) !important;
+    }}
+
+    /* Briefly highlight a chart card when its anchor is targeted via URL
+       fragment (LLM narrative citations + click-to-copy badge link). */
+    .chart-card.target-flash {{
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px rgba(240, 208, 138, 0.3);
+    }}
+
+    /* ════════════════════════════════════════════════════════════════════
+       LLM narrative system — landing-page status indicators + per-page
+       summary cards. See METHODOLOGY.md §7.
+       ════════════════════════════════════════════════════════════════════ */
+
+    /* Landing-page status indicators. Two big colored badges side-by-side. */
+    .status-indicators {{
+      margin: 1.5rem 0 2.5rem;
+    }}
+    .status-indicators--placeholder {{
+      padding: 1rem 1.25rem;
+      background: rgba(224,230,239,0.04);
+      border: 1px dashed rgba(224,230,239,0.15);
+      border-radius: 10px;
+    }}
+    .status-grid {{
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1.25rem;
+    }}
+    @media (max-width: 800px) {{
+      .status-grid {{ grid-template-columns: 1fr; }}
+    }}
+    .status-card {{
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-left: 6px solid var(--status-color, var(--accent));
+      border-radius: 10px;
+      padding: 1.25rem 1.4rem;
+    }}
+    .status-header {{
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 1rem;
+      margin-bottom: 0.7rem;
+    }}
+    .status-question {{
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-weight: 600;
+    }}
+    .status-level {{
+      font-size: 1.45rem;
+      font-weight: 700;
+      color: var(--status-color, var(--text));
+      letter-spacing: 0.01em;
+    }}
+    .status-narrative {{
+      margin: 0.4rem 0 0.9rem;
+      color: var(--text);
+      line-height: 1.55;
+      font-size: 0.93rem;
+      text-align: justify;
+      hyphens: auto;
+    }}
+
+    /* Stepper-pill scale showing all 4 levels with the current one
+       highlighted. Lives between the status-header and the narrative
+       so viewers see where the level sits within the full scale. */
+    .status-scale {{
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      margin: 0.5rem 0 1rem;
+      flex-wrap: wrap;
+    }}
+    .scale-step {{
+      font-size: 0.74rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      padding: 0.28rem 0.65rem;
+      border-radius: 4px;
+      border: 1px solid var(--step-color);
+      color: var(--step-color);
+      background: transparent;
+      opacity: 0.32;
+      transition: opacity 0.2s, transform 0.2s;
+    }}
+    .scale-step--active {{
+      opacity: 1;
+      color: #fff;
+      background: var(--step-color);
+      border-color: var(--step-color);
+      transform: scale(1.08);
+      box-shadow: 0 0 0 3px var(--step-color)22,
+                  0 0 14px -2px var(--step-color);
+      font-weight: 700;
+      letter-spacing: 0.05em;
+    }}
+    .scale-chevron {{
+      color: rgba(224, 230, 239, 0.18);
+      font-size: 0.95rem;
+      line-height: 1;
+      user-select: none;
+    }}
+    /* Subtitle above each section ("Overview") — small, muted, uppercase
+       to delineate without competing with the level word. */
+    .status-section-title {{
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      font-weight: 600;
+      margin: 0.9rem 0 0.35rem;
+    }}
+    .status-section-title:first-of-type {{ margin-top: 0.2rem; }}
+
+    /* Collapsible "Key Drivers" section. Same uppercase-muted-subtitle
+       style as the static section titles, but with a rotating chevron and
+       click-to-expand behaviour. Closed by default. Used both on the
+       landing-page status cards and the per-page summary cards for
+       visual consistency. */
+    .collapsible-section {{
+      margin-top: 0.7rem;
+    }}
+    .collapsible-section > summary {{
+      list-style: none;     /* hide default browser triangle */
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      user-select: none;
+      padding: 0.25rem 0.45rem;
+      margin: 0 -0.45rem;     /* let hover tint extend slightly past text edge */
+      border-radius: 4px;
+      transition: background 0.15s ease;
+    }}
+    .collapsible-section > summary:hover {{
+      background: rgba(240,208,138,0.06);
+    }}
+    .collapsible-section > summary::-webkit-details-marker {{
+      display: none;        /* Safari fallback */
+    }}
+    .collapsible-section > summary::before {{
+      content: "▸";
+      display: inline-block;
+      color: var(--accent);
+      font-size: 0.85rem;
+      transition: transform 0.15s ease;
+      transform-origin: 50% 50%;
+    }}
+    .collapsible-section[open] > summary::before {{
+      transform: rotate(90deg);
+    }}
+    .collapsible-title {{
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      font-weight: 600;
+    }}
+    .collapsible-section > summary:hover .collapsible-title,
+    .collapsible-section[open] > summary .collapsible-title {{
+      color: var(--accent);
+    }}
+    .collapsible-count {{
+      font-weight: 500;
+      color: rgba(224, 230, 239, 0.4);
+      letter-spacing: 0.04em;
+    }}
+    .collapsible-section[open] > .status-drivers,
+    .collapsible-section[open] > .ps-findings,
+    .collapsible-section[open] > .ps-gaps-list {{
+      margin-top: 0.6rem;
+    }}
+    .status-drivers {{
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+    }}
+    .status-driver {{
+      padding: 0.55rem 0.7rem;
+      background: rgba(224,230,239,0.03);
+      border-radius: 6px;
+      border-left: 2px solid rgba(224,230,239,0.1);
+    }}
+    .status-driver-text {{
+      margin: 0;
+      font-size: 0.86rem;
+      color: var(--text);
+      line-height: 1.5;
+    }}
+    .status-driver-refs {{
+      margin-top: 0.4rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.3rem;
+    }}
+    .status-meta {{
+      margin: 0.9rem 0 0;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      text-align: right;
+    }}
+
+    /* Per-page summary card. Lives at the top of each page. Tight summary
+       per question + bullet list of key_findings with inline chart-id
+       badges that link to the chart's anchor on the same page. */
+    .page-summary {{
+      margin: 1rem 0 2rem;
+    }}
+    .ps-grid {{
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+      gap: 1.25rem;
+    }}
+    .ps-block {{
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.1rem 1.3rem;
+    }}
+    .ps-header {{
+      margin-bottom: 0.5rem;
+    }}
+    .ps-header h2 {{
+      margin: 0;
+      font-size: 1.05rem;
+      color: var(--accent);
+      font-weight: 600;
+    }}
+    /* Section subtitles ("Take" / "Key findings") inside the per-page
+       summary card — match the landing-page status-section-title styling
+       for consistency. */
+    .ps-section-title {{
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      font-weight: 600;
+      margin: 0.7rem 0 0.3rem;
+    }}
+    .ps-section-title:first-of-type {{ margin-top: 0.2rem; }}
+    .ps-summary {{
+      margin: 0.2rem 0 0.5rem;
+      font-size: 0.92rem;
+      color: var(--text);
+      line-height: 1.55;
+      font-style: italic;
+      text-align: justify;
+      hyphens: auto;
+    }}
+    .ps-findings {{
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 0.7rem;
+    }}
+    .ps-finding {{
+      padding: 0.55rem 0.7rem;
+      background: rgba(224,230,239,0.03);
+      border-radius: 6px;
+      border-left: 2px solid rgba(224,230,239,0.1);
+    }}
+    .ps-finding-text {{
+      margin: 0;
+      font-size: 0.86rem;
+      color: var(--text);
+      line-height: 1.5;
+    }}
+    .ps-finding-refs {{
+      margin-top: 0.4rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.3rem;
+    }}
+    .chart-ref-badge {{
+      display: inline-block;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.7rem;
+      color: rgba(224,230,239,0.45);
+      background: transparent;
+      border: 1px solid rgba(224,230,239,0.1);
+      border-radius: 4px;
+      padding: 0.08rem 0.4rem;
+      text-decoration: none;
+      letter-spacing: 0.02em;
+      transition: color 0.15s, background 0.15s, border-color 0.15s;
+    }}
+    .chart-ref-badge:hover {{
+      color: var(--accent);
+      background: rgba(240,208,138,0.08);
+      border-color: rgba(240,208,138,0.25);
+    }}
+    /* Data Gaps reuses .collapsible-section; only override is a top divider
+       and slightly more breathing room since it follows the Key Drivers list. */
+    .ps-gaps {{
+      margin-top: 0.6rem;
+      border-top: 1px solid rgba(224,230,239,0.06);
+      padding-top: 0.5rem;
+    }}
+    .ps-gaps-list {{
+      margin: 0.6rem 0 0;
+      padding-left: 1.2rem;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }}
+    .ps-gaps-list li {{ margin: 0.25rem 0; }}
+
+    /* AI-disclosure + methodology footer (landing page only). Tight,
+       single-line summary by default; expands to a short methodology
+       brief. Visually muted so it sits below the status indicators
+       without competing with them. */
+    .ai-methodology {{
+      margin: 1.4rem 0 0.5rem;
+    }}
+    .ai-method-details {{
+      background: rgba(224,230,239,0.025);
+      border: 1px solid rgba(224,230,239,0.06);
+      border-radius: 8px;
+      padding: 0.65rem 1rem;
+      transition: background 0.15s ease, border-color 0.15s ease;
+    }}
+    .ai-method-details:hover {{
+      background: rgba(240,208,138,0.04);
+      border-color: rgba(240,208,138,0.18);
+    }}
+    .ai-method-details[open] {{
+      background: rgba(224,230,239,0.04);
+      border-color: rgba(224,230,239,0.1);
+      padding-bottom: 0.4rem;
+    }}
+    .ai-method-summary {{
+      list-style: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      font-size: 0.84rem;
+      color: var(--text-muted);
+      user-select: none;
+    }}
+    .ai-method-summary::-webkit-details-marker {{ display: none; }}
+    .ai-method-icon {{
+      color: var(--accent);
+      font-size: 0.95rem;
+      line-height: 1;
+    }}
+    .ai-method-title {{
+      flex: 1;
+      color: var(--text);
+    }}
+    .ai-method-cta {{
+      color: var(--accent);
+      font-weight: 600;
+      font-size: 0.8rem;
+    }}
+    .ai-method-arrow {{
+      display: inline-block;
+      transition: transform 0.15s ease;
+      transform-origin: 50% 50%;
+    }}
+    .ai-method-details[open] .ai-method-arrow {{
+      transform: rotate(90deg);
+    }}
+    .ai-method-body {{
+      margin-top: 0.9rem;
+      padding-top: 0.7rem;
+      border-top: 1px solid rgba(224,230,239,0.07);
+      font-size: 0.86rem;
+      color: var(--text);
+      line-height: 1.6;
+    }}
+    .ai-method-body p {{
+      margin: 0.5rem 0 0.9rem;
+      text-align: justify;
+      hyphens: auto;
+    }}
+    .ai-method-body p:last-child {{ margin-bottom: 0.2rem; }}
+    .ai-method-step-title {{
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 600;
+      margin: 1rem 0 0.2rem;
+    }}
+    .ai-method-step-title:first-of-type {{ margin-top: 0.3rem; }}
+    .ai-method-body code {{
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.78rem;
+      background: rgba(224,230,239,0.06);
+      padding: 0.1rem 0.35rem;
+      border-radius: 3px;
+      color: var(--text);
+    }}
+    .ai-method-caveat {{
+      color: var(--text-muted);
+      font-style: italic;
+      border-left: 2px solid rgba(240,208,138,0.3);
+      padding-left: 0.7rem;
+      margin-top: 1rem !important;
+    }}
+
     .chart-container {{ position: relative; height: 240px; margin-top: 0.5rem; }}
     .chart-empty {{ padding: 2rem 0; text-align: center; }}
     .muted {{ color: var(--text-muted); }}
@@ -2636,7 +3699,7 @@ BASE_TEMPLATE = '''<!DOCTYPE html>
       }});
       const active = wrap.querySelector('.view-panel[data-view="' + key + '"]');
       if (active && window._chartInstances) {{
-        active.querySelectorAll("canvas[id^='chart_']").forEach(canvas => {{
+        active.querySelectorAll(".chart-card canvas[id]").forEach(canvas => {{
           const inst = window._chartInstances[canvas.id];
           if (inst) inst.resize();
         }});
@@ -2661,7 +3724,7 @@ BASE_TEMPLATE = '''<!DOCTYPE html>
       // correct.
       const activePanel = wrap.querySelector('.country-panel[data-country="' + iso2 + '"]');
       if (activePanel && window._chartInstances) {{
-        activePanel.querySelectorAll("canvas[id^='chart_']").forEach(canvas => {{
+        activePanel.querySelectorAll(".chart-card canvas[id]").forEach(canvas => {{
           const inst = window._chartInstances[canvas.id];
           if (inst) {{
             inst.resize();
@@ -2765,6 +3828,150 @@ BASE_TEMPLATE = '''<!DOCTYPE html>
         // No tabs on this page — show all rows and total count
         filterDataSourcesByTab(null);
       }}
+
+      // ── Chart-ID badge: click to copy URL fragment to clipboard ──
+      // Each card surfaces its deterministic ID (e.g. ⌗ sg.activity.petroleum_refining)
+      // as an anchor. Clicking copies the absolute URL with #<id> fragment so the
+      // viewer can paste it into chat / docs and land directly on the chart.
+      document.addEventListener('click', function(ev) {{
+        const badge = ev.target.closest('.chart-id-badge');
+        if (!badge) return;
+        ev.preventDefault();
+        const cid = badge.dataset.chartId;
+        if (!cid) return;
+        const url = window.location.origin + window.location.pathname + '#' + cid;
+        const done = () => {{
+          badge.classList.add('copied');
+          setTimeout(() => badge.classList.remove('copied'), 900);
+          // Update the URL fragment so #-targeted highlight kicks in immediately.
+          history.replaceState(null, '', '#' + cid);
+          highlightTargetedChart();
+        }};
+        if (navigator.clipboard && navigator.clipboard.writeText) {{
+          navigator.clipboard.writeText(url).then(done, done);
+        }} else {{
+          done();
+        }}
+      }});
+
+      // ── URL-fragment-targeted chart highlight ──
+      // When the page loads (or hash changes) with #<chart_id>, briefly outline
+      // the matching .chart-card so the viewer sees the LLM citation target.
+      // If the target lives inside a hidden tab panel, country panel, or view
+      // panel, activate the right one first — otherwise scrollIntoView is a
+      // no-op on display:none elements.
+      function highlightTargetedChart() {{
+        document.querySelectorAll('.chart-card.target-flash').forEach(el =>
+          el.classList.remove('target-flash')
+        );
+        const hash = window.location.hash;
+        if (!hash || hash.length <= 1) return;
+        const raw = hash.slice(1);
+        // Resolve the card. Hashes can take three forms:
+        //   #card-<chart_id>   — already the card wrapper id (most common from LLM badges)
+        //   #<chart_id>        — bare chart id, needs 'card-' prepended
+        //   #<canvas_id>       — direct canvas id (legacy chart-id-footer badges)
+        // Use getElementById throughout to avoid CSS-selector escaping issues
+        // with the dot-separated chart id format.
+        let card = null;
+        if (raw.startsWith('card-')) {{
+          card = document.getElementById(raw);
+        }}
+        if (!card) card = document.getElementById('card-' + raw);
+        if (!card) {{
+          const canvas = document.getElementById(raw);
+          card = canvas ? canvas.closest('.chart-card') : null;
+        }}
+        if (!card) return;
+
+        // Walk every ancestor of `card` and collect the panels that need
+        // activating. Three flavours exist:
+        //   .tab-panel       — switched by .tab-btn click (no inline display style;
+        //                      uses 'active' class)
+        //   .country-panel   — switched by <select> + switchCountryPanel();
+        //                      hidden via inline style="display: none"
+        //   .view-panel      — switched by <select> + switchView();
+        //                      hidden via inline style="display: none"
+        // Activating from innermost outward isn't required (each switcher
+        // is independent), but processing them all in one pass — instead of
+        // jumping outward via .closest() — is what fixes the nested case
+        // (country-panel inside tab-panel: jumping past the tab-panel via
+        // .parentElement.closest() loses sight of the inner country-panel).
+        const panelsToActivate = [];
+        for (let n = card.parentElement; n; n = n.parentElement) {{
+          if (!n.classList) continue;
+          if (n.classList.contains('tab-panel') && !n.classList.contains('active')) {{
+            panelsToActivate.push({{ kind: 'tab', el: n }});
+          }} else if (n.classList.contains('country-panel') && n.style.display === 'none') {{
+            panelsToActivate.push({{ kind: 'country', el: n }});
+          }} else if (n.classList.contains('view-panel') && n.style.display === 'none') {{
+            panelsToActivate.push({{ kind: 'view', el: n }});
+          }}
+        }}
+        for (const p of panelsToActivate) {{
+          if (p.kind === 'tab') {{
+            const slug = p.el.id.replace(/^tab-/, '');
+            const btn = document.querySelector('.tab-btn[data-tab="' + CSS.escape(slug) + '"]');
+            if (btn) {{
+              switchTab(btn, slug);
+            }} else {{
+              const group = p.el.closest('.page-section');
+              if (group) {{
+                group.querySelectorAll('.tab-panel').forEach(x =>
+                  x.classList.toggle('active', x === p.el)
+                );
+              }}
+            }}
+          }} else if (p.kind === 'country') {{
+            const iso2 = p.el.dataset.country;
+            const sect = p.el.closest('section');
+            const sel  = sect ? sect.querySelector('select') : null;
+            if (sel && iso2) {{
+              sel.value = iso2;
+              if (typeof switchCountryPanel === 'function') {{
+                switchCountryPanel(sel);
+              }} else {{
+                sect.querySelectorAll('.country-panel').forEach(x => {{
+                  x.style.display = (x.dataset.country === iso2) ? '' : 'none';
+                }});
+              }}
+            }}
+          }} else if (p.kind === 'view') {{
+            const view = p.el.dataset.view;
+            const sect = p.el.closest('section');
+            const sel  = sect ? sect.querySelector('select') : null;
+            if (sel && view) {{
+              sel.value = view;
+              if (typeof switchView === 'function') {{
+                switchView(sel);
+              }} else {{
+                sect.querySelectorAll('.view-panel').forEach(x => {{
+                  x.style.display = (x.dataset.view === view) ? '' : 'none';
+                }});
+              }}
+            }}
+          }}
+        }}
+
+        // Activating a country/view panel triggers Chart.js resizes + a
+        // date-range re-application, which can take a few frames to settle.
+        // Wait long enough for the layout to stabilise before scrolling, and
+        // use block:'start' so multi-row cards land at the top of the
+        // viewport unambiguously (block:'center' can put a tall card's
+        // mid-section at the viewport centre, making the bottom half look
+        // like it IS the card).
+        const scrollAndFlash = () => {{
+          card.classList.add('target-flash');
+          card.scrollIntoView({{ behavior: 'smooth', block: 'start' }});
+          setTimeout(() => card.classList.remove('target-flash'), 2200);
+        }};
+        // Two-stage wait: rAF lets one paint happen, setTimeout(120) gives
+        // Chart.js resize callbacks time to complete before we measure.
+        requestAnimationFrame(() => setTimeout(scrollAndFlash, 120));
+      }}
+      window.addEventListener('hashchange', highlightTargetedChart);
+      // Run once at load — handles both bookmark links and freshly-shared URLs.
+      setTimeout(highlightTargetedChart, 50);
     }});
   </script>
 </body>
@@ -2777,16 +3984,54 @@ BASE_TEMPLATE = '''<!DOCTYPE html>
 def main():
     conn = get_connection()
     print(f"Building Iran Monitor pages → {OUTPUT_DIR}")
+    # Aggregate chart manifest across all pages — fed to the summary-stats
+    # extractor, which the LLM narrative system consumes. Each chart's
+    # entry knows which page it came from so a single LLM page-call can
+    # see only that page's charts.
+    manifest: dict = {}
     for slug, page_def in PAGES.items():
-        html = render_page(slug, page_def, conn)
+        html_str, data_sources_state = render_page(slug, page_def, conn)
         out_path = OUTPUT_DIR / f"{slug if slug != 'index' else 'index'}.html"
-        # Write to /tmp first then copy across because of FUSE mount semantics
-        # (HTML files are write-only ASCII so this isn't strictly necessary, but
-        # it matches the pattern we use for SQLite).
-        out_path.write_text(html, encoding="utf-8")
+        out_path.write_text(html_str, encoding="utf-8")
         size_kb = out_path.stat().st_size / 1024
         print(f"  {out_path.name}: {size_kb:.1f} KB")
+        # Stash chart-level metadata for the manifest. We store only the
+        # series_id list per chart (not the full series-data lists which
+        # would make the manifest huge); the extractor re-queries the DB
+        # for stats.
+        for chart_id, info in data_sources_state.items():
+            # Skip rows without a series list (e.g. the country_share_comparison
+            # entries register synthetic series with friendly_name only).
+            series_ids = [s.get("series_id") for s in info.get("series", []) if s.get("series_id")]
+            if not series_ids:
+                continue
+            manifest_entry = {
+                "page":           slug,
+                "page_prefix":    info.get("page_prefix", ""),
+                "tab_slug":       info.get("tab_slug") or "",
+                "title":          info.get("title", ""),
+                "description":    info.get("description", ""),
+                "relevant_to":    info.get("relevant_to") or [],
+                "parent_chart_id": info.get("parent_chart_id"),
+                "series_ids":     series_ids,
+            }
+            # Multi-subchart parent cards carry per-subchart metadata so the
+            # summary-stats extractor can compute pair-aware signals
+            # (e.g. nowcast actual-vs-counterfactual gaps).
+            if info.get("subchart_meta"):
+                manifest_entry["subchart_meta"] = info["subchart_meta"]
+            manifest[chart_id] = manifest_entry
     conn.close()
+
+    # Write the manifest. The summary-stats extractor reads this back instead
+    # of re-walking the layout config (which would risk drift in chart-ID
+    # generation between the build and the extractor).
+    manifest_path = ROOT / "data" / "chart_manifest.json"
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    manifest_path.write_text(
+        json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
+    print(f"  chart_manifest.json: {len(manifest)} charts → {manifest_path.name}")
     print("Done.")
 
 

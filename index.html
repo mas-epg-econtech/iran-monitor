@@ -118,6 +118,456 @@
     .card-header { margin-bottom: 0.75rem; }
     .card-header h3 { margin: 0 0 0.25rem; font-size: 0.98rem; color: var(--accent); font-weight: 600; }
     .card-desc { margin: 0; font-size: 0.83rem; color: var(--text-muted); line-height: 1.5; max-width: 64ch; }
+
+    /* Visible chart-ID badge — surfaces the deterministic chart ID (e.g.
+       ⌗ sg.activity.petroleum_refining) so the LLM narrative system can
+       cite charts and the reader can match the citation. Lives in a
+       footer at the bottom of each card — quiet by default, click-to-copy
+       the URL fragment. */
+    .chart-id-footer {
+      margin-top: 0.6rem;
+      text-align: right;
+      line-height: 1;
+    }
+    .chart-id-badge {
+      display: inline-block;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.66rem;
+      color: rgba(224, 230, 239, 0.28);
+      background: transparent;
+      border: 1px solid rgba(224, 230, 239, 0.05);
+      border-radius: 4px;
+      padding: 0.08rem 0.4rem;
+      text-decoration: none;
+      letter-spacing: 0.02em;
+      transition: color 0.15s, background 0.15s, border-color 0.15s;
+    }
+    .chart-card:hover .chart-id-badge {
+      color: rgba(224, 230, 239, 0.5);
+      border-color: rgba(224, 230, 239, 0.12);
+    }
+    .chart-id-badge:hover {
+      color: var(--accent) !important;
+      background: rgba(240, 208, 138, 0.08);
+      border-color: rgba(240, 208, 138, 0.25) !important;
+    }
+    .chart-id-badge.copied {
+      color: #10b981 !important;
+      background: rgba(16, 185, 129, 0.1);
+      border-color: rgba(16, 185, 129, 0.35) !important;
+    }
+
+    /* Briefly highlight a chart card when its anchor is targeted via URL
+       fragment (LLM narrative citations + click-to-copy badge link). */
+    .chart-card.target-flash {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px rgba(240, 208, 138, 0.3);
+    }
+
+    /* ════════════════════════════════════════════════════════════════════
+       LLM narrative system — landing-page status indicators + per-page
+       summary cards. See METHODOLOGY.md §7.
+       ════════════════════════════════════════════════════════════════════ */
+
+    /* Landing-page status indicators. Two big colored badges side-by-side. */
+    .status-indicators {
+      margin: 1.5rem 0 2.5rem;
+    }
+    .status-indicators--placeholder {
+      padding: 1rem 1.25rem;
+      background: rgba(224,230,239,0.04);
+      border: 1px dashed rgba(224,230,239,0.15);
+      border-radius: 10px;
+    }
+    .status-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1.25rem;
+    }
+    @media (max-width: 800px) {
+      .status-grid { grid-template-columns: 1fr; }
+    }
+    .status-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-left: 6px solid var(--status-color, var(--accent));
+      border-radius: 10px;
+      padding: 1.25rem 1.4rem;
+    }
+    .status-header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 1rem;
+      margin-bottom: 0.7rem;
+    }
+    .status-question {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-weight: 600;
+    }
+    .status-level {
+      font-size: 1.45rem;
+      font-weight: 700;
+      color: var(--status-color, var(--text));
+      letter-spacing: 0.01em;
+    }
+    .status-narrative {
+      margin: 0.4rem 0 0.9rem;
+      color: var(--text);
+      line-height: 1.55;
+      font-size: 0.93rem;
+      text-align: justify;
+      hyphens: auto;
+    }
+
+    /* Stepper-pill scale showing all 4 levels with the current one
+       highlighted. Lives between the status-header and the narrative
+       so viewers see where the level sits within the full scale. */
+    .status-scale {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      margin: 0.5rem 0 1rem;
+      flex-wrap: wrap;
+    }
+    .scale-step {
+      font-size: 0.74rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      padding: 0.28rem 0.65rem;
+      border-radius: 4px;
+      border: 1px solid var(--step-color);
+      color: var(--step-color);
+      background: transparent;
+      opacity: 0.32;
+      transition: opacity 0.2s, transform 0.2s;
+    }
+    .scale-step--active {
+      opacity: 1;
+      color: #fff;
+      background: var(--step-color);
+      border-color: var(--step-color);
+      transform: scale(1.08);
+      box-shadow: 0 0 0 3px var(--step-color)22,
+                  0 0 14px -2px var(--step-color);
+      font-weight: 700;
+      letter-spacing: 0.05em;
+    }
+    .scale-chevron {
+      color: rgba(224, 230, 239, 0.18);
+      font-size: 0.95rem;
+      line-height: 1;
+      user-select: none;
+    }
+    /* Subtitle above each section ("Overview") — small, muted, uppercase
+       to delineate without competing with the level word. */
+    .status-section-title {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      font-weight: 600;
+      margin: 0.9rem 0 0.35rem;
+    }
+    .status-section-title:first-of-type { margin-top: 0.2rem; }
+
+    /* Collapsible "Key Drivers" section. Same uppercase-muted-subtitle
+       style as the static section titles, but with a rotating chevron and
+       click-to-expand behaviour. Closed by default. Used both on the
+       landing-page status cards and the per-page summary cards for
+       visual consistency. */
+    .collapsible-section {
+      margin-top: 0.7rem;
+    }
+    .collapsible-section > summary {
+      list-style: none;     /* hide default browser triangle */
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      user-select: none;
+      padding: 0.25rem 0.45rem;
+      margin: 0 -0.45rem;     /* let hover tint extend slightly past text edge */
+      border-radius: 4px;
+      transition: background 0.15s ease;
+    }
+    .collapsible-section > summary:hover {
+      background: rgba(240,208,138,0.06);
+    }
+    .collapsible-section > summary::-webkit-details-marker {
+      display: none;        /* Safari fallback */
+    }
+    .collapsible-section > summary::before {
+      content: "▸";
+      display: inline-block;
+      color: var(--accent);
+      font-size: 0.85rem;
+      transition: transform 0.15s ease;
+      transform-origin: 50% 50%;
+    }
+    .collapsible-section[open] > summary::before {
+      transform: rotate(90deg);
+    }
+    .collapsible-title {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      font-weight: 600;
+    }
+    .collapsible-section > summary:hover .collapsible-title,
+    .collapsible-section[open] > summary .collapsible-title {
+      color: var(--accent);
+    }
+    .collapsible-count {
+      font-weight: 500;
+      color: rgba(224, 230, 239, 0.4);
+      letter-spacing: 0.04em;
+    }
+    .collapsible-section[open] > .status-drivers,
+    .collapsible-section[open] > .ps-findings,
+    .collapsible-section[open] > .ps-gaps-list {
+      margin-top: 0.6rem;
+    }
+    .status-drivers {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+    }
+    .status-driver {
+      padding: 0.55rem 0.7rem;
+      background: rgba(224,230,239,0.03);
+      border-radius: 6px;
+      border-left: 2px solid rgba(224,230,239,0.1);
+    }
+    .status-driver-text {
+      margin: 0;
+      font-size: 0.86rem;
+      color: var(--text);
+      line-height: 1.5;
+    }
+    .status-driver-refs {
+      margin-top: 0.4rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.3rem;
+    }
+    .status-meta {
+      margin: 0.9rem 0 0;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      text-align: right;
+    }
+
+    /* Per-page summary card. Lives at the top of each page. Tight summary
+       per question + bullet list of key_findings with inline chart-id
+       badges that link to the chart's anchor on the same page. */
+    .page-summary {
+      margin: 1rem 0 2rem;
+    }
+    .ps-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+      gap: 1.25rem;
+    }
+    .ps-block {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.1rem 1.3rem;
+    }
+    .ps-header {
+      margin-bottom: 0.5rem;
+    }
+    .ps-header h2 {
+      margin: 0;
+      font-size: 1.05rem;
+      color: var(--accent);
+      font-weight: 600;
+    }
+    /* Section subtitles ("Take" / "Key findings") inside the per-page
+       summary card — match the landing-page status-section-title styling
+       for consistency. */
+    .ps-section-title {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      font-weight: 600;
+      margin: 0.7rem 0 0.3rem;
+    }
+    .ps-section-title:first-of-type { margin-top: 0.2rem; }
+    .ps-summary {
+      margin: 0.2rem 0 0.5rem;
+      font-size: 0.92rem;
+      color: var(--text);
+      line-height: 1.55;
+      font-style: italic;
+      text-align: justify;
+      hyphens: auto;
+    }
+    .ps-findings {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 0.7rem;
+    }
+    .ps-finding {
+      padding: 0.55rem 0.7rem;
+      background: rgba(224,230,239,0.03);
+      border-radius: 6px;
+      border-left: 2px solid rgba(224,230,239,0.1);
+    }
+    .ps-finding-text {
+      margin: 0;
+      font-size: 0.86rem;
+      color: var(--text);
+      line-height: 1.5;
+    }
+    .ps-finding-refs {
+      margin-top: 0.4rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.3rem;
+    }
+    .chart-ref-badge {
+      display: inline-block;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.7rem;
+      color: rgba(224,230,239,0.45);
+      background: transparent;
+      border: 1px solid rgba(224,230,239,0.1);
+      border-radius: 4px;
+      padding: 0.08rem 0.4rem;
+      text-decoration: none;
+      letter-spacing: 0.02em;
+      transition: color 0.15s, background 0.15s, border-color 0.15s;
+    }
+    .chart-ref-badge:hover {
+      color: var(--accent);
+      background: rgba(240,208,138,0.08);
+      border-color: rgba(240,208,138,0.25);
+    }
+    /* Data Gaps reuses .collapsible-section; only override is a top divider
+       and slightly more breathing room since it follows the Key Drivers list. */
+    .ps-gaps {
+      margin-top: 0.6rem;
+      border-top: 1px solid rgba(224,230,239,0.06);
+      padding-top: 0.5rem;
+    }
+    .ps-gaps-list {
+      margin: 0.6rem 0 0;
+      padding-left: 1.2rem;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+    .ps-gaps-list li { margin: 0.25rem 0; }
+
+    /* AI-disclosure + methodology footer (landing page only). Tight,
+       single-line summary by default; expands to a short methodology
+       brief. Visually muted so it sits below the status indicators
+       without competing with them. */
+    .ai-methodology {
+      margin: 1.4rem 0 0.5rem;
+    }
+    .ai-method-details {
+      background: rgba(224,230,239,0.025);
+      border: 1px solid rgba(224,230,239,0.06);
+      border-radius: 8px;
+      padding: 0.65rem 1rem;
+      transition: background 0.15s ease, border-color 0.15s ease;
+    }
+    .ai-method-details:hover {
+      background: rgba(240,208,138,0.04);
+      border-color: rgba(240,208,138,0.18);
+    }
+    .ai-method-details[open] {
+      background: rgba(224,230,239,0.04);
+      border-color: rgba(224,230,239,0.1);
+      padding-bottom: 0.4rem;
+    }
+    .ai-method-summary {
+      list-style: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      font-size: 0.84rem;
+      color: var(--text-muted);
+      user-select: none;
+    }
+    .ai-method-summary::-webkit-details-marker { display: none; }
+    .ai-method-icon {
+      color: var(--accent);
+      font-size: 0.95rem;
+      line-height: 1;
+    }
+    .ai-method-title {
+      flex: 1;
+      color: var(--text);
+    }
+    .ai-method-cta {
+      color: var(--accent);
+      font-weight: 600;
+      font-size: 0.8rem;
+    }
+    .ai-method-arrow {
+      display: inline-block;
+      transition: transform 0.15s ease;
+      transform-origin: 50% 50%;
+    }
+    .ai-method-details[open] .ai-method-arrow {
+      transform: rotate(90deg);
+    }
+    .ai-method-body {
+      margin-top: 0.9rem;
+      padding-top: 0.7rem;
+      border-top: 1px solid rgba(224,230,239,0.07);
+      font-size: 0.86rem;
+      color: var(--text);
+      line-height: 1.6;
+    }
+    .ai-method-body p {
+      margin: 0.5rem 0 0.9rem;
+      text-align: justify;
+      hyphens: auto;
+    }
+    .ai-method-body p:last-child { margin-bottom: 0.2rem; }
+    .ai-method-step-title {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 600;
+      margin: 1rem 0 0.2rem;
+    }
+    .ai-method-step-title:first-of-type { margin-top: 0.3rem; }
+    .ai-method-body code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.78rem;
+      background: rgba(224,230,239,0.06);
+      padding: 0.1rem 0.35rem;
+      border-radius: 3px;
+      color: var(--text);
+    }
+    .ai-method-caveat {
+      color: var(--text-muted);
+      font-style: italic;
+      border-left: 2px solid rgba(240,208,138,0.3);
+      padding-left: 0.7rem;
+      margin-top: 1rem !important;
+    }
+
     .chart-container { position: relative; height: 240px; margin-top: 0.5rem; }
     .chart-empty { padding: 2rem 0; text-align: center; }
     .muted { color: var(--text-muted); }
@@ -547,15 +997,6 @@
 
   <main>
     
-    <section class="narrative-card">
-      <div class="narrative-header">
-        <h2>Key Takeaways</h2>
-        <span class="narrative-badge placeholder">Placeholder</span>
-      </div>
-      <div class="narrative-body">
-        <p class="muted">Key takeaways across Global Shocks, Singapore, and Regional dashboards will appear here once the LLM narrative trigger system is wired in.</p>
-      </div>
-    </section>
     
     <div class="nav-cards-grid">
         <a class="nav-card" href="global_shocks.html">
@@ -579,6 +1020,110 @@
             <p>Asia financial markets, MAS EPG country reports, and regional indicators across Asia ex-Singapore.</p>
           </div>
         </a></div>
+
+    <section class="status-indicators">
+      <div class="status-grid">
+        
+        <div class="status-card status-card--strained" style="--status-color: #f97316;">
+          <div class="status-header">
+            <span class="status-question">Energy supply</span>
+            <span class="status-level">Strained</span>
+          </div>
+          <div class="status-scale" role="meter" aria-label="Energy supply level"
+               aria-valuemin="1" aria-valuemax="4"
+               aria-valuenow="3">
+            <div class="scale-step scale-step--calm" style="--step-color: #10b981;">Calm</div><span class="scale-chevron" aria-hidden="true">›</span><div class="scale-step scale-step--watchful" style="--step-color: #f59e0b;">Watchful</div><span class="scale-chevron" aria-hidden="true">›</span><div class="scale-step scale-step--strained scale-step--active" style="--step-color: #f97316;">Strained</div><span class="scale-chevron" aria-hidden="true">›</span><div class="scale-step scale-step--critical" style="--step-color: #ef4444;">Critical</div>
+          </div>
+          <div class="status-section-title">Overview</div>
+          <p class="status-narrative">Brent has surged 97% from the November-December baseline to $124/bbl, with near-total passthrough into every refined and petrochemical product — naphtha up 86-101%, jet fuel up 103%, ethylene up 83-130%, and downstream polymers up 57-74%. Singapore&#x27;s Jurong Island complex is bearing the brunt: petroleum refining IIP is down 22%, petrochemicals down 28%, and other chemicals down 31% from pre-war baseline, with tanker export tonnage running 24% below counterfactual and Malacca Strait transits 12% below counterfactual. Shipping disruption is uneven across the region — South Korea tanker calls are 35% below counterfactual while Thailand is absorbing diverted cargoes at 34% above — pointing to active rerouting rather than uniform supply loss. Consumer price passthrough remains most acute in the Philippines (+2.4 pp headline) and Vietnam (+1.1 pp), while Singapore&#x27;s own CPI has risen only 0.6 pp; all monthly IIP and CPI data are 61 days stale, leaving the April picture unobserved.</p>
+          <details class="collapsible-section"><summary class="collapsible-title">Key Drivers <span class="collapsible-count">(5)</span></summary><ul class="status-drivers"><li class="status-driver"><p class="status-driver-text">Crude oil +97% from baseline, refined product passthrough near-total across all benchmarks</p><div class="status-driver-refs"><a class="chart-ref-badge" href="global_shocks.html#card-gs.energy.crude_oil">⌗ gs.energy.crude_oil</a><a class="chart-ref-badge" href="global_shocks.html#card-gs.energy.jet_fuel_nwe_fob_barges">⌗ gs.energy.jet_fuel_nwe_fob_barges</a><a class="chart-ref-badge" href="global_shocks.html#card-gs.energy.marine_fuel">⌗ gs.energy.marine_fuel</a></div></li><li class="status-driver"><p class="status-driver-text">Singapore refining and petrochemicals IIP down 22-31%, Jurong Island operating well below capacity</p><div class="status-driver-refs"><a class="chart-ref-badge" href="singapore.html#card-sg.sectoral_activity.petroleum_refining">⌗ sg.sectoral_activity.petroleum_refining</a><a class="chart-ref-badge" href="singapore.html#card-sg.sectoral_activity.petrochemicals">⌗ sg.sectoral_activity.petrochemicals</a><a class="chart-ref-badge" href="singapore.html#card-sg.sectoral_activity.specialty_and_other_chemicals">⌗ sg.sectoral_activity.specialty_and_other_chemicals</a></div></li><li class="status-driver"><p class="status-driver-text">Singapore tanker export tonnage 24% below counterfactual; Malacca Strait transits 12% below counterfactual</p><div class="status-driver-refs"><a class="chart-ref-badge" href="singapore.html#card-sg.shipping.tankers">⌗ sg.shipping.tankers</a><a class="chart-ref-badge" href="singapore.html#card-sg.shipping.malacca_strait_weekly_transits">⌗ sg.shipping.malacca_strait_weekly_transits</a></div></li><li class="status-driver"><p class="status-driver-text">South Korea tanker calls 35% below counterfactual; India tanker imports 12% below; Vietnam 29% below</p><div class="status-driver-refs"><a class="chart-ref-badge" href="regional.html#card-rg.shipping.kr.tanker">⌗ rg.shipping.kr.tanker</a><a class="chart-ref-badge" href="regional.html#card-rg.shipping.in.tanker">⌗ rg.shipping.in.tanker</a><a class="chart-ref-badge" href="regional.html#card-rg.shipping.vn.tanker">⌗ rg.shipping.vn.tanker</a></div></li><li class="status-driver"><p class="status-driver-text">CPI passthrough accelerating in Philippines (+2.4 pp) and Vietnam (+1.1 pp); JKM LNG +58% from baseline</p><div class="status-driver-refs"><a class="chart-ref-badge" href="regional.html#card-rg.prices.philippines">⌗ rg.prices.philippines</a><a class="chart-ref-badge" href="regional.html#card-rg.prices.vietnam">⌗ rg.prices.vietnam</a><a class="chart-ref-badge" href="regional.html#card-rg.financial_markets.jkm_lng">⌗ rg.financial_markets.jkm_lng</a></div></li></ul></details>
+        </div>
+        <div class="status-card status-card--watchful" style="--status-color: #f59e0b;">
+          <div class="status-header">
+            <span class="status-question">Financial markets</span>
+            <span class="status-level">Watchful</span>
+          </div>
+          <div class="status-scale" role="meter" aria-label="Financial markets level"
+               aria-valuemin="1" aria-valuemax="4"
+               aria-valuenow="2">
+            <div class="scale-step scale-step--calm" style="--step-color: #10b981;">Calm</div><span class="scale-chevron" aria-hidden="true">›</span><div class="scale-step scale-step--watchful scale-step--active" style="--step-color: #f59e0b;">Watchful</div><span class="scale-chevron" aria-hidden="true">›</span><div class="scale-step scale-step--strained" style="--step-color: #f97316;">Strained</div><span class="scale-chevron" aria-hidden="true">›</span><div class="scale-step scale-step--critical" style="--step-color: #ef4444;">Critical</div>
+          </div>
+          <div class="status-section-title">Overview</div>
+          <p class="status-narrative">The SGD has strengthened 1.1% against the USD, with NEER at its war-period high and USD/SGD 1M implied vol retreating sharply to near its war-period low after peaking in March — Singapore&#x27;s FX market is signalling de-escalation rather than stress. SGS yields are well-contained: the 2Y is +16 bp and the 10Y is −2 bp versus baseline, with no sign of stress-driven repricing; SORA 3M compounded is at its war-period low, and interbank overnight rates, while showing intra-day variability, remain consistent with normal money-market functioning. The STI is 9% above pre-war baseline, and SGX turnover is elevated but not distress-driven. The regional picture is more pressured: Philippine 10Y sovereign yields have risen 102 bp to 6.86% and Indonesian 10Y yields are up 64 bp to 6.84%, while the IDR and PHP have each depreciated roughly 4.2% against the USD — the two economies most exposed to Singapore-sourced fuel imports and with the clearest CPI passthrough.</p>
+          <details class="collapsible-section"><summary class="collapsible-title">Key Drivers <span class="collapsible-count">(5)</span></summary><ul class="status-drivers"><li class="status-driver"><p class="status-driver-text">SGD appreciated 1.1% vs USD; NEER at war-period high; implied vol near war-period low after March peak</p><div class="status-driver-refs"><a class="chart-ref-badge" href="singapore.html#card-sg.financial_markets.usd_sgd_spot_vs_1m_3m_forwards">⌗ sg.financial_markets.usd_sgd_spot_vs_1m_3m_forwards</a><a class="chart-ref-badge" href="singapore.html#card-sg.financial_markets.effective_exchange_rates_neer_vs_reer">⌗ sg.financial_markets.effective_exchange_rates_neer_vs_reer</a><a class="chart-ref-badge" href="singapore.html#card-sg.financial_markets.usd_sgd_implied_vol_1m_vs_3m">⌗ sg.financial_markets.usd_sgd_implied_vol_1m_vs_3m</a></div></li><li class="status-driver"><p class="status-driver-text">SGS yield curve contained within ±16 bp of baseline; interbank funding markets show no systemic stress</p><div class="status-driver-refs"><a class="chart-ref-badge" href="singapore.html#card-sg.financial_markets.sgs_yield_curve_2y_vs_10y">⌗ sg.financial_markets.sgs_yield_curve_2y_vs_10y</a><a class="chart-ref-badge" href="singapore.html#card-sg.financial_markets.sora_3m_compounded">⌗ sg.financial_markets.sora_3m_compounded</a><a class="chart-ref-badge" href="singapore.html#card-sg.financial_markets.domestic_interbank_overnight">⌗ sg.financial_markets.domestic_interbank_overnight</a></div></li><li class="status-driver"><p class="status-driver-text">Philippines 10Y +102 bp and Indonesia 10Y +64 bp vs baseline — largest sovereign yield moves in the region</p><div class="status-driver-refs"><a class="chart-ref-badge" href="regional.html#card-rg.financial_markets.sovereign_10_year_bond_yields_per_annum">⌗ rg.financial_markets.sovereign_10_year_bond_yields_per_annum</a></div></li><li class="status-driver"><p class="status-driver-text">IDR and PHP each depreciated ~4.2% vs USD; MYR down 3.8%; CNY down 3.6% — broad EM FX pressure</p><div class="status-driver-refs"><a class="chart-ref-badge" href="regional.html#card-rg.financial_markets.currency_strength_vs_usd_indexed_2026_01_01_100">⌗ rg.financial_markets.currency_strength_vs_usd_indexed_2026_01_01_100</a></div></li><li class="status-driver"><p class="status-driver-text">Gold retreated 30% from war-period peak; safe-haven spike partially unwound even as risk premia stay elevated</p><div class="status-driver-refs"><a class="chart-ref-badge" href="regional.html#card-rg.financial_markets.gold">⌗ rg.financial_markets.gold</a></div></li></ul></details>
+        </div>
+      </div>
+      <p class="status-meta">Snapshot as of 2026-05-04</p>
+    </section>
+
+    <section class="ai-methodology">
+      <details class="ai-method-details">
+        <summary class="ai-method-summary">
+          <span class="ai-method-icon">✦</span>
+          <span class="ai-method-title">The analysis above is AI-generated.</span>
+          <span class="ai-method-cta">Click to find out how <span class="ai-method-arrow">→</span></span>
+        </summary>
+        <div class="ai-method-body">
+          <p>
+            The dashboard pipeline uses Anthropic's Claude Sonnet 4.6 in a
+            structured, deterministic flow. There are four AI calls per
+            refresh, all run at temperature zero so the same inputs
+            produce the same reads run-to-run.
+          </p>
+
+          <h4 class="ai-method-step-title">1 · Pre-compute summary statistics</h4>
+          <p>
+            Before any AI is called, a deterministic step walks every
+            chart on every page and extracts a fixed set of statistics —
+            current value versus the pre-war baseline, 4-week and 12-week
+            momentum, the war-period range, where in that range the latest
+            print sits, staleness flags, and shipping nowcast actual-vs-
+            counterfactual gaps. This guarantees the AI only sees
+            structured numbers and never has to "read" a chart.
+          </p>
+
+          <h4 class="ai-method-step-title">2 · Per-page reads</h4>
+          <p>
+            Three independent AI calls — one each for Global Shocks,
+            Singapore, and Regional — receive only their page's summary
+            statistics plus a strict prompt. Each produces a structured
+            output: a 2-3 sentence overview and 3-5 key drivers per
+            question (energy supply, financial markets), where every
+            finding cites the specific charts that support it. Those
+            citations become the clickable badges in the Key Drivers
+            sections.
+          </p>
+
+          <h4 class="ai-method-step-title">3 · Synthesizer</h4>
+          <p>
+            A fourth AI call takes the three page outputs (not the raw
+            data) and produces the landing-page status badges and
+            narratives. The 4-level scale (Calm / Watchful / Strained /
+            Critical) is a judgement call by the AI based on the full
+            pattern of page-level findings, anchored against worked
+            calibration examples baked into the prompt for each level.
+            The narrative and drivers are the AI's synthesis, written
+            for an MAS audience.
+          </p>
+
+          <h4 class="ai-method-step-title">4 · Guardrails</h4>
+          <p>
+            Prompts forbid policy speculation and historical comparisons
+            not visible in the data. Every claim must cite a chart on
+            the dashboard, and stale series must be named as such. The
+            chart citations are the audit trail — click any of them to
+            jump directly to the underlying chart and verify.
+          </p>
+
+          <p class="ai-method-caveat">
+            AI can still be wrong. Treat the narratives as a structured
+            first read, not a final word — verify the key drivers via
+            the chart citations, especially before they leave the
+            building.
+          </p>
+        </div>
+      </details>
+    </section>
     
   </main>
 
@@ -596,7 +1141,7 @@
   </div>
 
   <footer>
-    <span>Iran Monitor &middot; built 2026-04-30 08:38 by MAS-EPG-EconTech</span>
+    <span>Iran Monitor &middot; built 2026-05-04 03:16 by MAS-EPG-EconTech</span>
     <span>Data: CEIC, SingStat, Motorist, DataGov, Bloomberg/GSheets, Yahoo Finance, ADB AsianBondsOnline, Investing.com, IMF PortWatch</span>
   </footer>
 
@@ -845,7 +1390,7 @@
       });
       const active = wrap.querySelector('.view-panel[data-view="' + key + '"]');
       if (active && window._chartInstances) {
-        active.querySelectorAll("canvas[id^='chart_']").forEach(canvas => {
+        active.querySelectorAll(".chart-card canvas[id]").forEach(canvas => {
           const inst = window._chartInstances[canvas.id];
           if (inst) inst.resize();
         });
@@ -870,7 +1415,7 @@
       // correct.
       const activePanel = wrap.querySelector('.country-panel[data-country="' + iso2 + '"]');
       if (activePanel && window._chartInstances) {
-        activePanel.querySelectorAll("canvas[id^='chart_']").forEach(canvas => {
+        activePanel.querySelectorAll(".chart-card canvas[id]").forEach(canvas => {
           const inst = window._chartInstances[canvas.id];
           if (inst) {
             inst.resize();
@@ -974,6 +1519,150 @@
         // No tabs on this page — show all rows and total count
         filterDataSourcesByTab(null);
       }
+
+      // ── Chart-ID badge: click to copy URL fragment to clipboard ──
+      // Each card surfaces its deterministic ID (e.g. ⌗ sg.activity.petroleum_refining)
+      // as an anchor. Clicking copies the absolute URL with #<id> fragment so the
+      // viewer can paste it into chat / docs and land directly on the chart.
+      document.addEventListener('click', function(ev) {
+        const badge = ev.target.closest('.chart-id-badge');
+        if (!badge) return;
+        ev.preventDefault();
+        const cid = badge.dataset.chartId;
+        if (!cid) return;
+        const url = window.location.origin + window.location.pathname + '#' + cid;
+        const done = () => {
+          badge.classList.add('copied');
+          setTimeout(() => badge.classList.remove('copied'), 900);
+          // Update the URL fragment so #-targeted highlight kicks in immediately.
+          history.replaceState(null, '', '#' + cid);
+          highlightTargetedChart();
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(url).then(done, done);
+        } else {
+          done();
+        }
+      });
+
+      // ── URL-fragment-targeted chart highlight ──
+      // When the page loads (or hash changes) with #<chart_id>, briefly outline
+      // the matching .chart-card so the viewer sees the LLM citation target.
+      // If the target lives inside a hidden tab panel, country panel, or view
+      // panel, activate the right one first — otherwise scrollIntoView is a
+      // no-op on display:none elements.
+      function highlightTargetedChart() {
+        document.querySelectorAll('.chart-card.target-flash').forEach(el =>
+          el.classList.remove('target-flash')
+        );
+        const hash = window.location.hash;
+        if (!hash || hash.length <= 1) return;
+        const raw = hash.slice(1);
+        // Resolve the card. Hashes can take three forms:
+        //   #card-<chart_id>   — already the card wrapper id (most common from LLM badges)
+        //   #<chart_id>        — bare chart id, needs 'card-' prepended
+        //   #<canvas_id>       — direct canvas id (legacy chart-id-footer badges)
+        // Use getElementById throughout to avoid CSS-selector escaping issues
+        // with the dot-separated chart id format.
+        let card = null;
+        if (raw.startsWith('card-')) {
+          card = document.getElementById(raw);
+        }
+        if (!card) card = document.getElementById('card-' + raw);
+        if (!card) {
+          const canvas = document.getElementById(raw);
+          card = canvas ? canvas.closest('.chart-card') : null;
+        }
+        if (!card) return;
+
+        // Walk every ancestor of `card` and collect the panels that need
+        // activating. Three flavours exist:
+        //   .tab-panel       — switched by .tab-btn click (no inline display style;
+        //                      uses 'active' class)
+        //   .country-panel   — switched by <select> + switchCountryPanel();
+        //                      hidden via inline style="display: none"
+        //   .view-panel      — switched by <select> + switchView();
+        //                      hidden via inline style="display: none"
+        // Activating from innermost outward isn't required (each switcher
+        // is independent), but processing them all in one pass — instead of
+        // jumping outward via .closest() — is what fixes the nested case
+        // (country-panel inside tab-panel: jumping past the tab-panel via
+        // .parentElement.closest() loses sight of the inner country-panel).
+        const panelsToActivate = [];
+        for (let n = card.parentElement; n; n = n.parentElement) {
+          if (!n.classList) continue;
+          if (n.classList.contains('tab-panel') && !n.classList.contains('active')) {
+            panelsToActivate.push({ kind: 'tab', el: n });
+          } else if (n.classList.contains('country-panel') && n.style.display === 'none') {
+            panelsToActivate.push({ kind: 'country', el: n });
+          } else if (n.classList.contains('view-panel') && n.style.display === 'none') {
+            panelsToActivate.push({ kind: 'view', el: n });
+          }
+        }
+        for (const p of panelsToActivate) {
+          if (p.kind === 'tab') {
+            const slug = p.el.id.replace(/^tab-/, '');
+            const btn = document.querySelector('.tab-btn[data-tab="' + CSS.escape(slug) + '"]');
+            if (btn) {
+              switchTab(btn, slug);
+            } else {
+              const group = p.el.closest('.page-section');
+              if (group) {
+                group.querySelectorAll('.tab-panel').forEach(x =>
+                  x.classList.toggle('active', x === p.el)
+                );
+              }
+            }
+          } else if (p.kind === 'country') {
+            const iso2 = p.el.dataset.country;
+            const sect = p.el.closest('section');
+            const sel  = sect ? sect.querySelector('select') : null;
+            if (sel && iso2) {
+              sel.value = iso2;
+              if (typeof switchCountryPanel === 'function') {
+                switchCountryPanel(sel);
+              } else {
+                sect.querySelectorAll('.country-panel').forEach(x => {
+                  x.style.display = (x.dataset.country === iso2) ? '' : 'none';
+                });
+              }
+            }
+          } else if (p.kind === 'view') {
+            const view = p.el.dataset.view;
+            const sect = p.el.closest('section');
+            const sel  = sect ? sect.querySelector('select') : null;
+            if (sel && view) {
+              sel.value = view;
+              if (typeof switchView === 'function') {
+                switchView(sel);
+              } else {
+                sect.querySelectorAll('.view-panel').forEach(x => {
+                  x.style.display = (x.dataset.view === view) ? '' : 'none';
+                });
+              }
+            }
+          }
+        }
+
+        // Activating a country/view panel triggers Chart.js resizes + a
+        // date-range re-application, which can take a few frames to settle.
+        // Wait long enough for the layout to stabilise before scrolling, and
+        // use block:'start' so multi-row cards land at the top of the
+        // viewport unambiguously (block:'center' can put a tall card's
+        // mid-section at the viewport centre, making the bottom half look
+        // like it IS the card).
+        const scrollAndFlash = () => {
+          card.classList.add('target-flash');
+          card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          setTimeout(() => card.classList.remove('target-flash'), 2200);
+        };
+        // Two-stage wait: rAF lets one paint happen, setTimeout(120) gives
+        // Chart.js resize callbacks time to complete before we measure.
+        requestAnimationFrame(() => setTimeout(scrollAndFlash, 120));
+      }
+      window.addEventListener('hashchange', highlightTargetedChart);
+      // Run once at load — handles both bookmark links and freshly-shared URLs.
+      setTimeout(highlightTargetedChart, 50);
     });
   </script>
 </body>

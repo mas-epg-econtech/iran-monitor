@@ -478,7 +478,7 @@ PAGES = {
                                 "single_legend": True,   # one legend per card across left+right charts
                                 "nodes": [
                                     {
-                                        "label": "Industrial chemicals (SITC 5 less 51 and 54)",
+                                        "label": "Industrial chemicals",
                                         "description": "SITC 5 (chemicals and related products) less SITC 51 (organic chemicals) less SITC 54 (medicinal and pharmaceutical products) — the basic industrial-chemicals subset most exposed to upstream cost pressure from Middle East energy supply disruption.",
                                         "subcharts": [
                                             {
@@ -500,7 +500,7 @@ PAGES = {
                                         ],
                                     },
                                     {
-                                        "label": "Total oil — mineral fuels chapter (SITC 3)",
+                                        "label": "Oil",
                                         "description": "SITC 3 — all mineral fuels and related materials (crude, refined products, gas, coal, electric current). Captures the full re-export-and-refining value chain through the Singapore hub.",
                                         "subcharts": [
                                             {
@@ -522,7 +522,7 @@ PAGES = {
                                         ],
                                     },
                                     {
-                                        "label": "Refined petroleum products (SITC 334)",
+                                        "label": "Refined petroleum products",
                                         "description": "SITC 334 — already-refined fuels (gasoline, diesel, jet fuel, naphtha, fuel oil) re-exported from Jurong Island after blending and processing. The narrow refining-margin slice of SITC 3.",
                                         "subcharts": [
                                             {

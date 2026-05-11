@@ -2754,6 +2754,42 @@ def render_nav(active_slug: str) -> str:
     return f'<nav class="topnav">{"".join(items)}</nav>'
 
 
+def _get_freshness_timestamps(conn) -> dict:
+    """Pull data-refresh and narrative-generation timestamps from the metadata
+    table for display in the page footer. Returns both as human-readable
+    strings ("YYYY-MM-DD HH:MM UTC"), or empty strings if missing.
+
+    - `data_refreshed`     comes from `last_full_update`, set by
+      `update_data.py` after the full pipeline completes.
+    - `narrative_generated` comes from the `updated_at` field inside the
+      `narrative_synthesizer` JSON payload — that's the most current
+      narrative timestamp; the older `narrative_generated_at` key is
+      no longer maintained.
+    """
+    out = {"data_refreshed": "—", "narrative_generated": "—"}
+
+    row = conn.execute(
+        "SELECT value FROM metadata WHERE key = 'last_full_update'"
+    ).fetchone()
+    if row and row[0]:
+        out["data_refreshed"] = row[0]
+
+    syn_row = conn.execute(
+        "SELECT value FROM metadata WHERE key = 'narrative_synthesizer'"
+    ).fetchone()
+    if syn_row and syn_row[0]:
+        try:
+            payload = json.loads(syn_row[0])
+            ts = payload.get("updated_at", "")
+            if len(ts) >= 16:
+                # "2026-05-05T09:50:11Z" → "2026-05-05 09:50 UTC"
+                out["narrative_generated"] = f"{ts[:10]} {ts[11:16]} UTC"
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    return out
+
+
 def render_page(slug: str, page_def: dict, conn) -> tuple[str, dict]:
     """Render one page. Returns (html, data_sources_state) — the second is the
     chart manifest used by compute_summary_stats.py to feed the LLM narrative
@@ -2837,7 +2873,7 @@ def render_page(slug: str, page_def: dict, conn) -> tuple[str, dict]:
     # Collapsible Data sources table at the bottom (only on pages with charts).
     data_sources_html = render_data_sources_section(data_sources_state) if data_sources_state else ""
 
-    built_at = datetime.now().strftime("%Y-%m-%d %H:%M")
+    freshness = _get_freshness_timestamps(conn)
 
     rendered_html = BASE_TEMPLATE.format(
         title=title,
@@ -2849,7 +2885,8 @@ def render_page(slug: str, page_def: dict, conn) -> tuple[str, dict]:
         data_sources=data_sources_html,
         chart_configs=chart_init_js,
         no_default_zoom_ids=no_default_zoom_js,
-        built_at=built_at,
+        data_refreshed=freshness["data_refreshed"],
+        narrative_generated=freshness["narrative_generated"],
     )
     return rendered_html, data_sources_state
 
@@ -4015,8 +4052,8 @@ BASE_TEMPLATE = '''<!DOCTYPE html>
   </div>
 
   <footer>
-    <span>Middle East Monitor &middot; built {built_at} by MAS-EPG-EconTech</span>
-    <span>Data: CEIC, SingStat, Motorist, DataGov, Bloomberg/GSheets, Yahoo Finance, ADB AsianBondsOnline, Investing.com, IMF PortWatch</span>
+    <span>Middle East Monitor &middot; data refreshed {data_refreshed} &middot; narratives generated {narrative_generated} &middot; built by MAS-EPG-EconTech</span>
+    <span>Sources: CEIC, SingStat, Motorist, DataGov, Bloomberg/GSheets, Yahoo Finance, ADB AsianBondsOnline, Investing.com, IMF PortWatch</span>
   </footer>
 
   <script>

@@ -230,6 +230,12 @@ no commentary outside the JSON.
     - Do NOT reference internal scoring mechanics, level cutoffs, or
       rubric language ("meets the Critical threshold", "below the
       major-concern band", etc.).
+    - **Numeric-qualitative consistency.** If you cite a precise number
+      for an indicator anywhere in the output, any qualitative
+      descriptor for that same indicator elsewhere must match the
+      magnitude. Don't say "nearly doubled" when the cited figure is
+      +64% — use "surged", "up sharply", or "two-thirds higher". Same
+      logic for any narrative-vs-driver pairing on the same indicator.
 
 - **FX phrasing precision** — when describing currency moves, name the
   currency that appreciated/depreciated, not the pair. The pair name

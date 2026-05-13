@@ -346,7 +346,7 @@ def load_controls():
         fp = os.path.join(DATA_DIR, "controls", "shipping", fname)
         if os.path.exists(fp):
             df = pd.read_csv(fp)
-            df["date"] = pd.to_datetime(df["date"])
+            df["date"] = pd.to_datetime(df["date"], format="mixed", errors="coerce")
             df["value"] = pd.to_numeric(df["value"], errors="coerce")
             s = df.set_index("date")["value"].dropna()
             s.name = cname
@@ -1415,7 +1415,7 @@ def run_per_port_deviations(results, frozen_monthly, frozen_daily, live_daily, s
             "export_roro", "import_roro", "portcalls_roro",
             "portcalls"]
     df = pd.read_csv(fp, usecols=lambda c: c in cols)
-    df["date"] = pd.to_datetime(df["date"])
+    df["date"] = pd.to_datetime(df["date"], format="mixed", errors="coerce")
     numeric_cols = [c for c in df.columns if c not in ("date", "portname", "ISO3")]
     for c in numeric_cols:
         df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0)
@@ -1536,7 +1536,7 @@ def run_top_ports_global(results, frozen_monthly, frozen_daily, live_daily, seas
             "export_roro", "import_roro", "portcalls_roro",
             "portcalls"]
     df = pd.read_csv(fp, usecols=lambda c: c in cols)
-    df["date"] = pd.to_datetime(df["date"])
+    df["date"] = pd.to_datetime(df["date"], format="mixed", errors="coerce")
     numeric_cols = [c for c in df.columns if c not in ("date", "portname", "ISO3")]
     for c in numeric_cols:
         df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0)
@@ -1985,7 +1985,7 @@ def run_all_port_group_aggregates(results, frozen_monthly, frozen_daily, live_da
             "export_roro", "import_roro", "portcalls_roro",
             "portcalls"]
     df = pd.read_csv(fp, usecols=lambda c: c in cols)
-    df["date"] = pd.to_datetime(df["date"])
+    df["date"] = pd.to_datetime(df["date"], format="mixed", errors="coerce")
     # Force numeric for any columns that may have mixed types
     numeric_cols = [c for c in df.columns if c not in ("date", "portname", "ISO3")]
     for c in numeric_cols:
@@ -2035,7 +2035,7 @@ def run_country_aggregates(results, frozen_monthly, frozen_daily, live_daily, se
             "export_roro", "import_roro", "portcalls_roro",
             "portcalls"]
     df = pd.read_csv(fp, usecols=lambda c: c in cols)
-    df["date"] = pd.to_datetime(df["date"])
+    df["date"] = pd.to_datetime(df["date"], format="mixed", errors="coerce")
     numeric_cols = [c for c in df.columns if c not in ("date", "portname", "ISO3", "country")]
     for c in numeric_cols:
         df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0)

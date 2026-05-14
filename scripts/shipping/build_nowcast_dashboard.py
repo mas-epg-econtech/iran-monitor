@@ -3250,45 +3250,10 @@ def build_html(data: Dict[str, Any], output_path: str) -> None:
         '    </style>\n' +
         '</head>\n' +
         '<body>\n' +
-        '    <!-- Password gate -->\n' +
-        '    <style>\n' +
-        '        #auth-gate { display:flex; align-items:center; justify-content:center; min-height:100vh; background:linear-gradient(135deg, #1e293b 0%, #334155 100%); }\n' +
-        '        .auth-box { background:white; border-radius:12px; padding:2.5rem; width:360px; box-shadow:0 4px 24px rgba(0,0,0,0.2); text-align:center; }\n' +
-        '        .auth-box h1 { font-size:1.2rem; color:#1e293b; margin-bottom:0.3rem; font-family:Inter,sans-serif; }\n' +
-        '        .auth-box .subtitle { font-size:0.85rem; color:#64748b; margin-bottom:1.5rem; font-family:Inter,sans-serif; }\n' +
-        '        .auth-box input { width:100%; padding:0.7rem 1rem; border:1px solid #cbd5e1; border-radius:8px; font-size:0.95rem; outline:none; transition:border-color 0.15s; font-family:Inter,sans-serif; }\n' +
-        '        .auth-box input:focus { border-color:#3b82f6; }\n' +
-        '        .auth-box button { width:100%; padding:0.7rem; margin-top:0.75rem; border:none; border-radius:8px; background:#1e293b; color:white; font-size:0.95rem; font-weight:600; cursor:pointer; transition:background 0.15s; font-family:Inter,sans-serif; }\n' +
-        '        .auth-box button:hover { background:#334155; }\n' +
-        '        .auth-error { color:#ef4444; font-size:0.85rem; margin-top:0.75rem; display:none; font-family:Inter,sans-serif; }\n' +
-        '    </style>\n' +
-        '    <div id="auth-gate">\n' +
-        '        <div class="auth-box">\n' +
-        '            <h1>Shipping Nowcast Dashboard</h1>\n' +
-        '            <div class="subtitle">Enter the password to continue</div>\n' +
-        '            <input type="password" id="auth-pw" placeholder="Password" autofocus\n' +
-        '                onkeydown="if(event.key===\'Enter\')document.getElementById(\'auth-btn\').click()">\n' +
-        '            <button id="auth-btn" onclick="checkAuth()">Enter</button>\n' +
-        '            <div class="auth-error" id="auth-err">Incorrect password</div>\n' +
-        '        </div>\n' +
-        '    </div>\n' +
-        '    <div id="dashboard-content" style="display:none;">\n' +
-        '    <script>\n' +
-        '    async function checkAuth() {\n' +
-        '        var pw = document.getElementById("auth-pw").value;\n' +
-        '        var enc = new TextEncoder();\n' +
-        '        var hash = await crypto.subtle.digest("SHA-256", enc.encode(pw));\n' +
-        '        var hex = Array.from(new Uint8Array(hash)).map(function(b){return b.toString(16).padStart(2,"0")}).join("");\n' +
-        '        if (hex === "96869035ed72106a7d2d9eabd7c5b46ca832d3c51a5b2f524c36f224d870eb8b") {\n' +
-        '            document.getElementById("auth-gate").style.display = "none";\n' +
-        '            document.getElementById("dashboard-content").style.display = "block";\n' +
-        '            // Initialize map now that container is visible\n' +
-        '            setTimeout(function() { if (typeof initPortMap === "function") initPortMap(); }, 100);\n' +
-        '        } else {\n' +
-        '            document.getElementById("auth-err").style.display = "block";\n' +
-        '        }\n' +
-        '    }\n' +
-        '    </script>\n' +
+        '    <!-- Password gate removed: dashboard is auth-gated upstream by\n' +
+        '         the parent ME Monitor host (Airbase access controls) and is\n' +
+        '         served same-origin from the ME Monitor repo. -->\n' +
+        '    <div id="dashboard-content">\n' +
         '    <script>\n' +
         '    function getCrisisAnnotation(labels) {\n' +
         '      var crisisDate = "2026-03-02";\n' +

@@ -182,11 +182,12 @@ PAGES = {
                                 "type": "shipping_iframe",
                                 "title": "Hormuz shipping nowcast",
                                 "description": (
-                                    "Live shipping nowcast dashboard, hosted separately. Tracks "
-                                    "actual versus counterfactual vessel flows across 5 chokepoints "
-                                    "and regional aggregates using IMF PortWatch satellite data."
+                                    "Live shipping nowcast dashboard. Tracks actual versus "
+                                    "counterfactual vessel flows across 5 chokepoints and "
+                                    "regional aggregates using IMF PortWatch satellite data. "
+                                    "Refreshed nightly with the rest of the dashboard."
                                 ),
-                                "url": "https://mas-epg-econtech.github.io/shipping-nowcast/",
+                                "url": "shipping_nowcast.html",
                             },
                         ],
                     },

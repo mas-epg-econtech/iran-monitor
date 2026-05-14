@@ -1773,6 +1773,24 @@ def main():
         n_nowcast = compute_singapore_shipping_nowcast(conn)
         print(f"  -> {n_nowcast} nowcast rows written")
 
+    # 8b. Build the standalone shipping-nowcast dashboard HTML so the
+    # Global Shocks → Shipping iframe can serve a same-origin file that
+    # refreshes nightly with the rest of the deploy. The script reads
+    # data/shipping/nowcast_results_s13.json and writes shipping_nowcast.html
+    # at the project root (deploy.sh's `git add -A '*.html'` picks it up).
+    nowcast_json = PROJECT_ROOT / "data" / "shipping" / "nowcast_results_s13.json"
+    if nowcast_json.exists():
+        print(f"\n[8b] Rebuilding standalone shipping-nowcast dashboard HTML...")
+        _run_subprocess(
+            [sys.executable, str(PROJECT_ROOT / "scripts" / "shipping" / "build_nowcast_dashboard.py")],
+            label="build_nowcast_dashboard.py", hard_fail=False,
+        )
+        out_path = PROJECT_ROOT / "shipping_nowcast.html"
+        if out_path.exists():
+            print(f"  -> wrote {out_path.name} ({out_path.stat().st_size / 1024 / 1024:.1f} MB)")
+    else:
+        print(f"\n[8b] Standalone shipping dashboard SKIPPED (no nowcast JSON at {nowcast_json}).")
+
     # Done with data fetching
     upsert_metadata("last_full_update", timestamp)
     conn.close()

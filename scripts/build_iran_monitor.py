@@ -4711,6 +4711,14 @@ def main():
     # for every page; we captured it from the first transformed page above).
     if airbase_dir and dashboard_js_seen:
         (airbase_dir / "dashboard.js").write_text(dashboard_js_seen, encoding="utf-8")
+        # Auxiliary same-origin assets that the iframe sections reference
+        # (e.g. the standalone shipping-nowcast dashboard at the project
+        # root). Copy them into the Airbase variant so the iframe still
+        # resolves on the airbase host.
+        for aux_name in ("shipping_nowcast.html",):
+            aux_src = ROOT / aux_name
+            if aux_src.exists():
+                (airbase_dir / aux_name).write_bytes(aux_src.read_bytes())
         airbase_size_kb = sum(
             f.stat().st_size for f in airbase_dir.rglob("*") if f.is_file()
         ) / 1024

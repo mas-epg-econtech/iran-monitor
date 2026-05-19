@@ -82,6 +82,7 @@ from src.db import (
 from src.series_config import SERIES_REGISTRY
 from src.derived_series import (
     compute_mas_core_mom,
+    compute_regional_imp_pi_ppi_yoy,
     compute_singstat_chem_export_country_series,
     compute_singstat_petroleum_export_country_series,
     compute_singstat_totaloil_export_country_series,
@@ -1534,10 +1535,13 @@ def main():
     print(f"  -> {len(ceic_frames)} series, {ceic_total} total rows written")
 
     # 1b. Derived series — recompute after CEIC fetch since they depend on it.
-    # Currently just MAS Core Inflation MoM, derived from the level index.
+    # Currently: MAS Core Inflation MoM, plus regional Import/Producer Price
+    # Index YoY (20 series derived from regional_{imp_pi,ppi}_raw_*).
     print(f"\n[1b] Computing derived series...")
     n_mom = compute_mas_core_mom(conn)
     print(f"  -> mas_core_inflation_mom: {n_mom} rows written")
+    n_ipp = compute_regional_imp_pi_ppi_yoy(conn)
+    print(f"  -> regional_imp_pi/ppi_yoy (20 series): {n_ipp} rows written")
 
     # 2. Google Sheets (Bloomberg price data)
     print(f"\n[2/12] Fetching Google Sheets (Bloomberg price data)...")

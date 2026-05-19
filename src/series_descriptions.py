@@ -596,6 +596,42 @@ SERIES_DESCRIPTIONS: dict[str, dict[str, str]] = {
     "regional_ipi_index_vn": {"name": "Vietnam",     "desc": "Vietnam industrial production index (GSO)."},
 
     # ════════════════════════════════════════════════════════════════════
+    # REGIONAL — Import Price Index, YoY % (added May 2026 per IED request)
+    # 7 of 10 derived in src/derived_series.compute_regional_imp_pi_ppi_yoy()
+    # from a level index; CN, ID, VN arrive YoY-pre-computed at source. The
+    # IPI/PPI cards combine both series per country, so the legend friendly
+    # name is the series TYPE ("Import Price Index") and the country lives
+    # in the chart title.
+    # ════════════════════════════════════════════════════════════════════
+    "regional_imp_pi_yoy_cn": {"name": "Import Price Index", "desc": "Import Price Index for China — year-on-year % change. Sourced from CEIC (Trade Index: YoY: Value: Import HS2; arrives pre-computed YoY)."},
+    "regional_imp_pi_yoy_in": {"name": "Import Price Index", "desc": "Import Price Index for India — year-on-year % change. Sourced from CEIC (commodity-weighted Import Price Index)."},
+    "regional_imp_pi_yoy_id": {"name": "Import Price Index", "desc": "Import Price Index for Indonesia — year-on-year % change. Sourced from CEIC (commodity-weighted Import Price Index)."},
+    "regional_imp_pi_yoy_jp": {"name": "Import Price Index", "desc": "Import Price Index for Japan — year-on-year % change. Sourced from CEIC (BoJ ImPI, JPY basis, all commodities)."},
+    "regional_imp_pi_yoy_my": {"name": "Import Price Index", "desc": "Import Price Index for Malaysia — year-on-year % change. Sourced from CEIC (DOSM Import Unit Value Index, total)."},
+    "regional_imp_pi_yoy_ph": {"name": "Import Price Index", "desc": "Import Price Index for the Philippines — year-on-year % change. Sourced from CEIC (commodity-weighted Import Price Index)."},
+    "regional_imp_pi_yoy_kr": {"name": "Import Price Index", "desc": "Import Price Index for South Korea — year-on-year % change. Sourced from CEIC (BoK ImPI, won basis)."},
+    "regional_imp_pi_yoy_tw": {"name": "Import Price Index", "desc": "Import Price Index for Taiwan — year-on-year % change. Sourced from CEIC (DGBAS ImPI, NTD)."},
+    "regional_imp_pi_yoy_th": {"name": "Import Price Index", "desc": "Import Price Index for Thailand — year-on-year % change. Sourced from CEIC (MoC ImPI, USD)."},
+    "regional_imp_pi_yoy_vn": {"name": "Import Price Index", "desc": "Import Price Index for Vietnam — year-on-year % change. Sourced from CEIC (commodity-weighted Import Price Index)."},
+
+    # ════════════════════════════════════════════════════════════════════
+    # REGIONAL — Producer Price Index, YoY % (added May 2026 per IED request)
+    # India and Indonesia publish a wholesale price index (WPI) in lieu of a
+    # PPI; substitution accepted per request scope. CN/JP/KR/TW/MY/PH/TH
+    # publish a PPI directly; VN uses the GSO industrial PPI YoY pre-computed.
+    # ════════════════════════════════════════════════════════════════════
+    "regional_ppi_yoy_cn": {"name": "Producer Price Index", "desc": "Producer Price Index for China — year-on-year % change. Sourced from CEIC (NBS PPI for industrial products)."},
+    "regional_ppi_yoy_in": {"name": "Producer Price Index", "desc": "Wholesale Price Index for India — year-on-year % change (India publishes WPI in lieu of a PPI). Sourced from CEIC."},
+    "regional_ppi_yoy_id": {"name": "Producer Price Index", "desc": "Wholesale Price Index for Indonesia — year-on-year % change (Indonesia publishes WPI in lieu of a PPI; arrives pre-computed YoY). Sourced from CEIC (BPS WPI General YoY)."},
+    "regional_ppi_yoy_jp": {"name": "Producer Price Index", "desc": "Producer Price Index for Japan — year-on-year % change. Sourced from CEIC (BoJ Corporate Goods PPI)."},
+    "regional_ppi_yoy_my": {"name": "Producer Price Index", "desc": "Producer Price Index for Malaysia — year-on-year % change (DOSM PPI for local production). Sourced from CEIC."},
+    "regional_ppi_yoy_ph": {"name": "Producer Price Index", "desc": "Producer Price Index for the Philippines — year-on-year % change. Sourced from CEIC (PSA PPI for manufacturing)."},
+    "regional_ppi_yoy_kr": {"name": "Producer Price Index", "desc": "Producer Price Index for South Korea — year-on-year % change. Sourced from CEIC (BoK PPI)."},
+    "regional_ppi_yoy_tw": {"name": "Producer Price Index", "desc": "Producer Price Index for Taiwan — year-on-year % change. Sourced from CEIC (DGBAS PPI)."},
+    "regional_ppi_yoy_th": {"name": "Producer Price Index", "desc": "Producer Price Index for Thailand — year-on-year % change. Sourced from CEIC (MoC PPI)."},
+    "regional_ppi_yoy_vn": {"name": "Producer Price Index", "desc": "Producer Price Index for Vietnam — year-on-year % change (GSO industrial PPI, arrives pre-computed YoY). Sourced from CEIC."},
+
+    # ════════════════════════════════════════════════════════════════════
     # REGIONAL — Chemical imports from SG (derived from trade_singstat)
     # Two series_ids per country — annual (2023-2025) and monthly (from
     # 2026-01) — rendered as separate bar charts paired per row in the

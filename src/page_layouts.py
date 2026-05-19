@@ -792,28 +792,157 @@ PAGES = {
                         "slug": "prices",
                         "label": "Prices",
                         "subsections": [
+                            # Three sub-tabs (added May 2026 per IED request):
+                            #   at_a_glance       — heatmap view (placeholder; built in a
+                            #                       follow-up commit by the heatmap-section task)
+                            #   cpi_inflation     — existing per-country headline+core CPI grid
+                            #   ipi_ppi_inflation — new per-country Import Price + Producer
+                            #                       Price grid (10 countries, 2 series each)
                             {
-                                "type": "chart_grid",
-                                "title": "Inflation",
-                                "description": (
-                                    "Year-on-year inflation across 10 Asian economies "
-                                    "(China, India, Indonesia, Japan, Malaysia, Philippines, "
-                                    "South Korea, Taiwan, Thailand, Vietnam). Each chart shows "
-                                    "headline CPI and core CPI side-by-side: headline captures "
-                                    "the broadest pass-through of the Iran/Hormuz energy shock; "
-                                    "core strips out food and energy to expose second-round effects."
-                                ),
-                                "nodes": [
-                                    {"label": "China",       "description": "Headline and core CPI for China — year-on-year, % change.",          "series": ["regional_cpi_headline_cn", "regional_cpi_core_cn"]},
-                                    {"label": "India",       "description": "Headline and core CPI for India — year-on-year, % change.",          "series": ["regional_cpi_headline_in", "regional_cpi_core_in"]},
-                                    {"label": "Indonesia",   "description": "Headline and core CPI for Indonesia — year-on-year, % change.",      "series": ["regional_cpi_headline_id", "regional_cpi_core_id"]},
-                                    {"label": "Japan",       "description": "Headline and core CPI for Japan — year-on-year, % change.",          "series": ["regional_cpi_headline_jp", "regional_cpi_core_jp"]},
-                                    {"label": "Malaysia",    "description": "Headline and core CPI for Malaysia — year-on-year, % change.",       "series": ["regional_cpi_headline_my", "regional_cpi_core_my"]},
-                                    {"label": "Philippines", "description": "Headline and core CPI for the Philippines — year-on-year, % change.","series": ["regional_cpi_headline_ph", "regional_cpi_core_ph"]},
-                                    {"label": "South Korea", "description": "Headline and core CPI for South Korea — year-on-year, % change.",    "series": ["regional_cpi_headline_kr", "regional_cpi_core_kr"]},
-                                    {"label": "Taiwan",      "description": "Headline and core CPI for Taiwan — year-on-year, % change.",         "series": ["regional_cpi_headline_tw", "regional_cpi_core_tw"]},
-                                    {"label": "Thailand",    "description": "Headline and core CPI for Thailand — year-on-year, % change.",       "series": ["regional_cpi_headline_th", "regional_cpi_core_th"]},
-                                    {"label": "Vietnam",     "description": "Headline and core CPI for Vietnam — year-on-year, % change.",        "series": ["regional_cpi_headline_vn", "regional_cpi_core_vn"]},
+                                "type": "tab_group",
+                                "tabs": [
+                                    {
+                                        "slug": "at_a_glance",
+                                        "label": "At a glance",
+                                        "subsections": [
+                                            {
+                                                "type": "heatmap",
+                                                "title": "Headline CPI inflation (% YoY)",
+                                                "description": (
+                                                    "Year-on-year headline CPI across 10 Asian economies. "
+                                                    "Cells red where inflation is positive, green where deflation; "
+                                                    "shade scales with magnitude. Default window is the most recent "
+                                                    "16 months — adjust the date selector to extend the range."
+                                                ),
+                                                "rows": [
+                                                    {"label": "China",       "series": "regional_cpi_headline_cn"},
+                                                    {"label": "India",       "series": "regional_cpi_headline_in"},
+                                                    {"label": "Indonesia",   "series": "regional_cpi_headline_id"},
+                                                    {"label": "Japan",       "series": "regional_cpi_headline_jp"},
+                                                    {"label": "Malaysia",    "series": "regional_cpi_headline_my"},
+                                                    {"label": "Philippines", "series": "regional_cpi_headline_ph"},
+                                                    {"label": "South Korea", "series": "regional_cpi_headline_kr"},
+                                                    {"label": "Taiwan",      "series": "regional_cpi_headline_tw"},
+                                                    {"label": "Thailand",    "series": "regional_cpi_headline_th"},
+                                                    {"label": "Vietnam",     "series": "regional_cpi_headline_vn"},
+                                                ],
+                                                "default_window_months": 16,
+                                                "color_cap": 8.0,
+                                            },
+                                            {
+                                                "type": "heatmap",
+                                                "title": "Import Price Index (% YoY)",
+                                                "description": (
+                                                    "Year-on-year change in Import Price Indices across 10 Asian "
+                                                    "economies. A leading indicator of imported-input cost pressure; "
+                                                    "wide swings reflect global commodity and exchange-rate moves "
+                                                    "passed through to local importer invoices."
+                                                ),
+                                                "rows": [
+                                                    {"label": "China",       "series": "regional_imp_pi_yoy_cn"},
+                                                    {"label": "India",       "series": "regional_imp_pi_yoy_in"},
+                                                    {"label": "Indonesia",   "series": "regional_imp_pi_yoy_id"},
+                                                    {"label": "Japan",       "series": "regional_imp_pi_yoy_jp"},
+                                                    {"label": "Malaysia",    "series": "regional_imp_pi_yoy_my"},
+                                                    {"label": "Philippines", "series": "regional_imp_pi_yoy_ph"},
+                                                    {"label": "South Korea", "series": "regional_imp_pi_yoy_kr"},
+                                                    {"label": "Taiwan",      "series": "regional_imp_pi_yoy_tw"},
+                                                    {"label": "Thailand",    "series": "regional_imp_pi_yoy_th"},
+                                                    {"label": "Vietnam",     "series": "regional_imp_pi_yoy_vn"},
+                                                ],
+                                                "default_window_months": 16,
+                                                "color_cap": 15.0,
+                                            },
+                                            {
+                                                "type": "heatmap",
+                                                "title": "Producer Price Index (% YoY)",
+                                                "description": (
+                                                    "Year-on-year change in Producer Price Indices across 10 Asian "
+                                                    "economies. Captures factory-gate price pressure — a step "
+                                                    "downstream from imported inputs and upstream from headline CPI. "
+                                                    "Persistent positive prints flag building cost-push inflation."
+                                                ),
+                                                "rows": [
+                                                    {"label": "China",       "series": "regional_ppi_yoy_cn"},
+                                                    {"label": "India",       "series": "regional_ppi_yoy_in"},
+                                                    {"label": "Indonesia",   "series": "regional_ppi_yoy_id"},
+                                                    {"label": "Japan",       "series": "regional_ppi_yoy_jp"},
+                                                    {"label": "Malaysia",    "series": "regional_ppi_yoy_my"},
+                                                    {"label": "Philippines", "series": "regional_ppi_yoy_ph"},
+                                                    {"label": "South Korea", "series": "regional_ppi_yoy_kr"},
+                                                    {"label": "Taiwan",      "series": "regional_ppi_yoy_tw"},
+                                                    {"label": "Thailand",    "series": "regional_ppi_yoy_th"},
+                                                    {"label": "Vietnam",     "series": "regional_ppi_yoy_vn"},
+                                                ],
+                                                "default_window_months": 16,
+                                                "color_cap": 10.0,
+                                            },
+                                        ],
+                                    },
+                                    {
+                                        "slug": "cpi_inflation",
+                                        "label": "CPI Inflation",
+                                        "subsections": [
+                                            {
+                                                "type": "chart_grid",
+                                                "title": "CPI Inflation",
+                                                "description": (
+                                                    "Year-on-year inflation across 10 Asian economies "
+                                                    "(China, India, Indonesia, Japan, Malaysia, Philippines, "
+                                                    "South Korea, Taiwan, Thailand, Vietnam). Each chart shows "
+                                                    "headline CPI and core CPI side-by-side: headline captures "
+                                                    "the broadest pass-through of the Iran/Hormuz energy shock; "
+                                                    "core strips out food and energy to expose second-round effects."
+                                                ),
+                                                "nodes": [
+                                                    {"label": "China",       "description": "Headline and core CPI for China — year-on-year, % change.",          "series": ["regional_cpi_headline_cn", "regional_cpi_core_cn"]},
+                                                    {"label": "India",       "description": "Headline and core CPI for India — year-on-year, % change.",          "series": ["regional_cpi_headline_in", "regional_cpi_core_in"]},
+                                                    {"label": "Indonesia",   "description": "Headline and core CPI for Indonesia — year-on-year, % change.",      "series": ["regional_cpi_headline_id", "regional_cpi_core_id"]},
+                                                    {"label": "Japan",       "description": "Headline and core CPI for Japan — year-on-year, % change.",          "series": ["regional_cpi_headline_jp", "regional_cpi_core_jp"]},
+                                                    {"label": "Malaysia",    "description": "Headline and core CPI for Malaysia — year-on-year, % change.",       "series": ["regional_cpi_headline_my", "regional_cpi_core_my"]},
+                                                    {"label": "Philippines", "description": "Headline and core CPI for the Philippines — year-on-year, % change.","series": ["regional_cpi_headline_ph", "regional_cpi_core_ph"]},
+                                                    {"label": "South Korea", "description": "Headline and core CPI for South Korea — year-on-year, % change.",    "series": ["regional_cpi_headline_kr", "regional_cpi_core_kr"]},
+                                                    {"label": "Taiwan",      "description": "Headline and core CPI for Taiwan — year-on-year, % change.",         "series": ["regional_cpi_headline_tw", "regional_cpi_core_tw"]},
+                                                    {"label": "Thailand",    "description": "Headline and core CPI for Thailand — year-on-year, % change.",       "series": ["regional_cpi_headline_th", "regional_cpi_core_th"]},
+                                                    {"label": "Vietnam",     "description": "Headline and core CPI for Vietnam — year-on-year, % change.",        "series": ["regional_cpi_headline_vn", "regional_cpi_core_vn"]},
+                                                ],
+                                            },
+                                        ],
+                                    },
+                                    {
+                                        "slug": "ipi_ppi_inflation",
+                                        "label": "IPI and PPI Inflation",
+                                        "subsections": [
+                                            {
+                                                "type": "chart_grid",
+                                                "title": "IPI and PPI Inflation",
+                                                "description": (
+                                                    "Import Price Index (IPI) and Producer Price Index (PPI), "
+                                                    "year-on-year, across the same 10 Asian economies. IPI tracks "
+                                                    "the price of imported goods entering each economy — the most "
+                                                    "direct external-cost channel from Middle East energy shocks. "
+                                                    "PPI tracks domestic producer / wholesale gate prices — how far "
+                                                    "those import costs have propagated through the supply chain. "
+                                                    "Three series arrive pre-computed YoY at source (China import "
+                                                    "trade index, Indonesia WPI, Vietnam industrial PPI); the rest "
+                                                    "are derived from level indices. India and Indonesia publish "
+                                                    "a Wholesale Price Index in lieu of a PPI."
+                                                ),
+                                                "nodes": [
+                                                    {"label": "China",       "description": "Import Price Index and Producer Price Index for China — year-on-year, % change.",          "series": ["regional_imp_pi_yoy_cn", "regional_ppi_yoy_cn"]},
+                                                    {"label": "India",       "description": "Import Price Index and Wholesale Price Index for India — year-on-year, % change.",         "series": ["regional_imp_pi_yoy_in", "regional_ppi_yoy_in"]},
+                                                    {"label": "Indonesia",   "description": "Import Price Index and Wholesale Price Index for Indonesia — year-on-year, % change.",     "series": ["regional_imp_pi_yoy_id", "regional_ppi_yoy_id"]},
+                                                    {"label": "Japan",       "description": "Import Price Index and Producer Price Index for Japan — year-on-year, % change.",          "series": ["regional_imp_pi_yoy_jp", "regional_ppi_yoy_jp"]},
+                                                    {"label": "Malaysia",    "description": "Import Price Index and Producer Price Index for Malaysia — year-on-year, % change.",       "series": ["regional_imp_pi_yoy_my", "regional_ppi_yoy_my"]},
+                                                    {"label": "Philippines", "description": "Import Price Index and Producer Price Index for the Philippines — year-on-year, % change.","series": ["regional_imp_pi_yoy_ph", "regional_ppi_yoy_ph"]},
+                                                    {"label": "South Korea", "description": "Import Price Index and Producer Price Index for South Korea — year-on-year, % change.",    "series": ["regional_imp_pi_yoy_kr", "regional_ppi_yoy_kr"]},
+                                                    {"label": "Taiwan",      "description": "Import Price Index and Producer Price Index for Taiwan — year-on-year, % change.",         "series": ["regional_imp_pi_yoy_tw", "regional_ppi_yoy_tw"]},
+                                                    {"label": "Thailand",    "description": "Import Price Index and Producer Price Index for Thailand — year-on-year, % change.",       "series": ["regional_imp_pi_yoy_th", "regional_ppi_yoy_th"]},
+                                                    {"label": "Vietnam",     "description": "Import Price Index and Producer Price Index for Vietnam — year-on-year, % change.",        "series": ["regional_imp_pi_yoy_vn", "regional_ppi_yoy_vn"]},
+                                                ],
+                                            },
+                                        ],
+                                    },
                                 ],
                             },
                         ],

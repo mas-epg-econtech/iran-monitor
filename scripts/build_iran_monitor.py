@@ -1530,6 +1530,18 @@ def render_tab_group(section: dict, conn, chart_state: dict, data_sources_state:
                 sub_inner += render_view_selector(sub, conn, chart_state, data_sources_state,
                                                    tab_slug=tab["slug"], page_prefix=page_prefix,
                                                    default_relevance=tab_relevance)
+            elif t == "tab_group":
+                # Nested tab group: render recursively. switchTab JS scopes
+                # via .closest('.page-section'), so each tab_group's own
+                # <section class="page-section"> wrapper keeps inner/outer
+                # tab clicks from cross-firing. Pass the parent tab's slug
+                # forward so nested chart_grid data-sources tracking still
+                # reports against this parent tab when filtering by tab.
+                sub_inner += render_tab_group(sub, conn, chart_state, data_sources_state,
+                                              page_prefix=page_prefix,
+                                              page_slug=page_slug)
+            elif t == "heatmap":
+                sub_inner += render_heatmap(sub, conn)
         panels_html += f'<div class="tab-panel{active_cls}" id="tab-{tab["slug"]}">{sub_inner}</div>'
     return f'''
     <section class="page-section">
@@ -1552,6 +1564,185 @@ def render_shipping_iframe(section: dict) -> str:
       <div class="iframe-wrap">
         <iframe src="{url}" loading="lazy" title="Hormuz shipping nowcast" referrerpolicy="no-referrer"></iframe>
       </div>
+    </section>'''
+
+
+# Counter to give each heatmap on a page a unique DOM scope (so multiple
+# heatmaps in one tab don't share the same date-range input ID).
+_HEATMAP_SEQ = [0]
+
+
+def _heatmap_color(value: float | None, vmin: float, vmax: float) -> str:
+    """Diverging red-white-green palette centered at 0.
+
+    Positive values (inflation) trend red; negative values (deflation)
+    trend green; near-zero is white. Saturation scales with magnitude
+    against the supplied vmin / vmax envelope (capped at ±1).
+    """
+    if value is None:
+        return "background-color: #1f2940; color: #4d5566;"
+    cap = max(abs(vmin), abs(vmax), 1e-6)
+    t = max(-1.0, min(1.0, value / cap))
+    if t >= 0:
+        # white → red
+        r = 255
+        g = int(255 * (1 - t * 0.78))
+        b = int(255 * (1 - t * 0.82))
+    else:
+        # white → green
+        t = -t
+        r = int(255 * (1 - t * 0.55))
+        g = int(255 * (1 - t * 0.18))
+        b = int(255 * (1 - t * 0.55))
+    # Switch the text color to white once the cell darkens past mid-tone.
+    text = "#0f1a2e" if (r + g + b) > 520 else "#ffffff"
+    return f"background-color: rgb({r},{g},{b}); color: {text};"
+
+
+def render_heatmap(section: dict, conn) -> str:
+    """Render a heatmap of countries × months for a set of monthly YoY series.
+
+    Section schema:
+      title:         heading shown above the heatmap
+      description:   optional intro paragraph
+      rows:          list of {"label": "<country name>", "series": "<series_id>"}
+      default_window_months: int (default 16) — width of rolling window shown by default
+      color_cap:     float (default 8.0) — magnitude at which color saturation maxes out
+
+    Renders a same-origin HTML table with one <th> column per month, color-coded
+    cells, and a pair of <input type='month'> selectors so the viewer can adjust
+    the visible window. Re-coloring stays static (relative to color_cap), so the
+    selector is pure column show/hide — no client-side recompute needed.
+    """
+    title = section.get("title", "")
+    desc = section.get("description", "")
+    rows = section.get("rows", [])
+    default_window = int(section.get("default_window_months", 16))
+    color_cap = float(section.get("color_cap", 8.0))
+
+    _HEATMAP_SEQ[0] += 1
+    seq = _HEATMAP_SEQ[0]
+    id_prefix = f"hm{seq}"
+
+    # Pull each series's monthly data once. Build a date-set so we can lay out
+    # one column per month present in *any* series; missing values render as
+    # dashes with a neutral background.
+    series_data: list[tuple[str, dict[str, float]]] = []
+    all_dates: set[str] = set()
+    for r in rows:
+        sid = r["series"]
+        recs = conn.execute(
+            "SELECT date, value FROM time_series "
+            "WHERE series_id = ? AND value IS NOT NULL "
+            "ORDER BY date",
+            (sid,),
+        ).fetchall()
+        # Normalise dates to year-month (YYYY-MM) and keep the last value
+        # observed for each month — handles both YYYY-MM-DD and YYYY-MM
+        # storage.
+        by_month: dict[str, float] = {}
+        for d, v in recs:
+            if not d:
+                continue
+            ym = d[:7]
+            by_month[ym] = float(v)
+        series_data.append((r["label"], by_month))
+        all_dates.update(by_month.keys())
+
+    if not all_dates:
+        return f'''
+    <section class="page-section heatmap-section">
+      <div class="section-header"><h2>{html.escape(title)}</h2></div>
+      <p class="empty-note">No data available yet for these series.</p>
+    </section>'''
+
+    sorted_months = sorted(all_dates)
+    latest = sorted_months[-1]
+    # Default-visible window: last `default_window` months (clipped to data range).
+    cutoff_idx = max(0, len(sorted_months) - default_window)
+    default_from = sorted_months[cutoff_idx]
+    default_to = latest
+
+    # Header row: one <th> per month, with a short label like "Jan-25".
+    def _label(ym: str) -> str:
+        y, m = ym.split("-")
+        months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                 "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+        return f"{months[int(m) - 1]}-{y[-2:]}"
+
+    header_cells = "".join(
+        f'<th data-ym="{ym}" class="hm-month">{_label(ym)}</th>'
+        for ym in sorted_months
+    )
+
+    # Body rows: country label + one <td> per month with computed color.
+    body_html = ""
+    for country_label, by_month in series_data:
+        cells = ""
+        for ym in sorted_months:
+            v = by_month.get(ym)
+            style = _heatmap_color(v, -color_cap, color_cap)
+            text = f"{v:+.1f}" if v is not None else "·"
+            cells += f'<td data-ym="{ym}" class="hm-cell" style="{style}" title="{country_label} · {ym} · {text}%">{text}</td>'
+        body_html += f'<tr><th class="hm-country">{html.escape(country_label)}</th>{cells}</tr>'
+
+    desc_html = f'<p class="section-desc">{html.escape(desc)}</p>' if desc else ""
+
+    # Date-range selector + JS that toggles column visibility. The script is
+    # self-contained per heatmap (scoped via id_prefix).
+    selector = f'''
+      <div class="hm-controls">
+        <label for="{id_prefix}-from">From</label>
+        <input type="month" id="{id_prefix}-from" value="{default_from}"
+               min="{sorted_months[0]}" max="{latest}">
+        <label for="{id_prefix}-to">To</label>
+        <input type="month" id="{id_prefix}-to" value="{default_to}"
+               min="{sorted_months[0]}" max="{latest}">
+        <button type="button" class="hm-reset" id="{id_prefix}-reset">Reset</button>
+      </div>'''
+
+    # The JS picks any <th data-ym> or <td data-ym> inside the heatmap and
+    # toggles display based on whether its YYYY-MM falls inside the inputs.
+    inline_js = f'''
+      <script>
+      (function() {{
+        var root = document.getElementById('{id_prefix}-table');
+        var fromI = document.getElementById('{id_prefix}-from');
+        var toI = document.getElementById('{id_prefix}-to');
+        var reset = document.getElementById('{id_prefix}-reset');
+        function apply() {{
+          var lo = fromI.value;
+          var hi = toI.value;
+          root.querySelectorAll('[data-ym]').forEach(function(el) {{
+            var ym = el.getAttribute('data-ym');
+            el.style.display = (ym >= lo && ym <= hi) ? '' : 'none';
+          }});
+        }}
+        fromI.addEventListener('change', apply);
+        toI.addEventListener('change', apply);
+        reset.addEventListener('click', function() {{
+          fromI.value = '{default_from}';
+          toI.value = '{default_to}';
+          apply();
+        }});
+        apply();
+      }})();
+      </script>'''
+
+    return f'''
+    <section class="page-section heatmap-section">
+      <div class="section-header">
+        <h2>{html.escape(title)}</h2>
+        {desc_html}
+      </div>
+      {selector}
+      <div class="hm-scroll">
+        <table class="hm-table" id="{id_prefix}-table">
+          <thead><tr><th class="hm-corner">Country</th>{header_cells}</tr></thead>
+          <tbody>{body_html}</tbody>
+        </table>
+      </div>
+      {inline_js}
     </section>'''
 
 
@@ -2846,6 +3037,8 @@ def render_page(slug: str, page_def: dict, conn) -> tuple[str, dict]:
             sections_html.append(render_placeholder(section))
         elif t == "pdf_cards":
             sections_html.append(render_pdf_cards(section))
+        elif t == "heatmap":
+            sections_html.append(render_heatmap(section, conn))
 
     nav_html = render_nav(slug)
     # The legacy "Key takeaways" placeholder block is now redundant — the
@@ -3871,6 +4064,47 @@ BASE_TEMPLATE = '''<!DOCTYPE html>
     .placeholder-card h2 {{ margin: 0 0 0.5rem; font-size: 1.15rem; color: var(--text); }}
     .placeholder-intro {{ margin: 0 0 0.5rem; color: var(--text-muted); font-size: 0.9rem; }}
     .planned-content {{ margin: 0; padding-left: 1.4rem; color: var(--text-muted); line-height: 1.6; font-size: 0.9rem; }}
+
+    /* ── Heatmap section ── */
+    .heatmap-section .hm-controls {{
+      display: flex; align-items: center; gap: 0.65rem; flex-wrap: wrap;
+      margin: 0.85rem 0 0.65rem; font-size: 0.85rem; color: var(--text-muted);
+    }}
+    .heatmap-section .hm-controls label {{ font-weight: 600; color: var(--text); }}
+    .heatmap-section .hm-controls input[type="month"] {{
+      background: var(--bg-card); border: 1px solid var(--border);
+      color: var(--text); padding: 0.25rem 0.4rem; border-radius: 4px;
+      font-size: 0.85rem; color-scheme: dark;
+    }}
+    .heatmap-section .hm-reset {{
+      background: transparent; border: 1px solid var(--border); color: var(--text-muted);
+      padding: 0.25rem 0.65rem; border-radius: 4px; cursor: pointer; font-size: 0.78rem;
+    }}
+    .heatmap-section .hm-reset:hover {{ color: var(--text); border-color: var(--text-muted); }}
+    .heatmap-section .hm-scroll {{ overflow-x: auto; border-radius: 8px; }}
+    .heatmap-section .hm-table {{
+      border-collapse: separate; border-spacing: 1px;
+      background: var(--bg-card); width: max-content; min-width: 100%;
+      font-size: 0.78rem; font-variant-numeric: tabular-nums;
+    }}
+    .heatmap-section .hm-table th, .heatmap-section .hm-table td {{
+      padding: 0.35rem 0.5rem; text-align: right; white-space: nowrap;
+    }}
+    .heatmap-section .hm-table thead th {{
+      background: rgba(255,255,255,0.04); color: var(--text-muted);
+      font-weight: 600; font-size: 0.72rem; letter-spacing: 0.02em;
+      position: sticky; top: 0;
+    }}
+    .heatmap-section .hm-table th.hm-corner {{ text-align: left; }}
+    .heatmap-section .hm-table th.hm-country {{
+      text-align: left; background: rgba(255,255,255,0.04);
+      color: var(--text); font-weight: 600;
+      position: sticky; left: 0; z-index: 1;
+    }}
+    .heatmap-section .hm-table td.hm-cell {{ font-weight: 500; }}
+    .heatmap-section .empty-note {{
+      padding: 1rem; color: var(--text-muted); font-style: italic;
+    }}
 
     /* ── Landing nav cards ── */
     .nav-cards-grid {{

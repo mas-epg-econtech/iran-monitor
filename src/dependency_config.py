@@ -503,6 +503,117 @@ DEPENDENCY_NODES = {
         google_sheet_series=[],
         sheet_keywords=["industrial production", "ipi"],
     ),
+
+    # ==================================================================
+    # REGIONAL — Per-country Import Price Index (YoY) and Producer Price
+    # Index (YoY). One node per country per series so the Regional
+    # Prices → IPI/PPI sub-tab can render 10 single-line chart cards.
+    # Source series_id are derived by src/derived_series.compute_regional_imp_pi_ppi_yoy()
+    # from the raw CEIC fetches in series_config.py.
+    # ==================================================================
+    # ── Import Price Index (per-country YoY) ──
+    "regional_imp_pi_yoy_cn": node(
+        label="China Import Price Index YoY",
+        description="China import prices — year-on-year, from CEIC's HS2-aggregated import trade index.",
+        series_ids=["regional_imp_pi_yoy_cn"],
+    ),
+    "regional_imp_pi_yoy_in": node(
+        label="India Import Price Index YoY",
+        description="India import prices — year-on-year, derived from CEIC's commodity-level import price index.",
+        series_ids=["regional_imp_pi_yoy_in"],
+    ),
+    "regional_imp_pi_yoy_jp": node(
+        label="Japan Import Price Index YoY",
+        description="Japan import prices — year-on-year, derived from the BoJ Import Price Index (yen basis).",
+        series_ids=["regional_imp_pi_yoy_jp"],
+    ),
+    "regional_imp_pi_yoy_kr": node(
+        label="South Korea Import Price Index YoY",
+        description="South Korea import prices — year-on-year, derived from the BoK Import Price Index (won basis).",
+        series_ids=["regional_imp_pi_yoy_kr"],
+    ),
+    "regional_imp_pi_yoy_tw": node(
+        label="Taiwan Import Price Index YoY",
+        description="Taiwan import prices — year-on-year, derived from the DGBAS Import Price Index (NTD basis).",
+        series_ids=["regional_imp_pi_yoy_tw"],
+    ),
+    "regional_imp_pi_yoy_my": node(
+        label="Malaysia Import Price Index YoY",
+        description="Malaysia import prices — year-on-year, derived from DOSM's Import Unit Value Index (total).",
+        series_ids=["regional_imp_pi_yoy_my"],
+    ),
+    "regional_imp_pi_yoy_id": node(
+        label="Indonesia Import Price Index YoY",
+        description="Indonesia import prices — year-on-year, derived from BPS's commodity-level import price index.",
+        series_ids=["regional_imp_pi_yoy_id"],
+    ),
+    "regional_imp_pi_yoy_ph": node(
+        label="Philippines Import Price Index YoY",
+        description="Philippines import prices — year-on-year, derived from PSA's commodity-level import price index.",
+        series_ids=["regional_imp_pi_yoy_ph"],
+    ),
+    "regional_imp_pi_yoy_th": node(
+        label="Thailand Import Price Index YoY",
+        description="Thailand import prices — year-on-year, derived from the Bank of Thailand Import Price Index (USD basis).",
+        series_ids=["regional_imp_pi_yoy_th"],
+    ),
+    "regional_imp_pi_yoy_vn": node(
+        label="Vietnam Import Price Index YoY",
+        description="Vietnam import prices — year-on-year, derived from the GSO commodity-level import price index.",
+        series_ids=["regional_imp_pi_yoy_vn"],
+    ),
+
+    # ── Producer Price Index (per-country YoY) ──
+    "regional_ppi_yoy_cn": node(
+        label="China Producer Price Index YoY",
+        description="China factory-gate prices — year-on-year, derived from the NBS Producer Price Index.",
+        series_ids=["regional_ppi_yoy_cn"],
+    ),
+    "regional_ppi_yoy_in": node(
+        label="India Producer Price Index YoY",
+        description="India producer/wholesale prices — year-on-year, derived from the Wholesale Price Index (India's PPI proxy).",
+        series_ids=["regional_ppi_yoy_in"],
+    ),
+    "regional_ppi_yoy_jp": node(
+        label="Japan Producer Price Index YoY",
+        description="Japan producer prices — year-on-year, derived from the BoJ Producer Price Index.",
+        series_ids=["regional_ppi_yoy_jp"],
+    ),
+    "regional_ppi_yoy_kr": node(
+        label="South Korea Producer Price Index YoY",
+        description="South Korea producer prices — year-on-year, derived from the BoK Producer Price Index.",
+        series_ids=["regional_ppi_yoy_kr"],
+    ),
+    "regional_ppi_yoy_tw": node(
+        label="Taiwan Producer Price Index YoY",
+        description="Taiwan producer prices — year-on-year, derived from the DGBAS Producer Price Index.",
+        series_ids=["regional_ppi_yoy_tw"],
+    ),
+    "regional_ppi_yoy_my": node(
+        label="Malaysia Producer Price Index YoY",
+        description="Malaysia producer prices — year-on-year, derived from DOSM's PPI for local production.",
+        series_ids=["regional_ppi_yoy_my"],
+    ),
+    "regional_ppi_yoy_id": node(
+        label="Indonesia Producer Price Index YoY",
+        description="Indonesia producer/wholesale prices — year-on-year, from BPS's Wholesale Price Index (general).",
+        series_ids=["regional_ppi_yoy_id"],
+    ),
+    "regional_ppi_yoy_ph": node(
+        label="Philippines Producer Price Index YoY",
+        description="Philippines producer prices — year-on-year, derived from the PSA Producer Price Index.",
+        series_ids=["regional_ppi_yoy_ph"],
+    ),
+    "regional_ppi_yoy_th": node(
+        label="Thailand Producer Price Index YoY",
+        description="Thailand producer prices — year-on-year, derived from the Ministry of Commerce Producer Price Index.",
+        series_ids=["regional_ppi_yoy_th"],
+    ),
+    "regional_ppi_yoy_vn": node(
+        label="Vietnam Producer Price Index YoY",
+        description="Vietnam producer prices — year-on-year, from the GSO's industrial PPI (all items).",
+        series_ids=["regional_ppi_yoy_vn"],
+    ),
 }
 
 

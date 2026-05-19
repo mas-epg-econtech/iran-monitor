@@ -97,6 +97,114 @@ def compute_mas_core_mom(conn: sqlite3.Connection) -> int:
     return len(out_rows)
 
 
+# ---------------------------------------------------------------------------
+# REGIONAL — Import Price Index and Producer Price Index, year-on-year
+# ---------------------------------------------------------------------------
+# Two flavours of raw input arrive from CEIC (see src/series_config.py):
+#   - 17 are level indices → we compute YoY = (v_t/v_{t-12} - 1) * 100.
+#   - 3 already arrive YoY-pre-computed at source (China import HS2,
+#     Indonesia WPI general YoY, Vietnam PPI industrial YoY) → we just
+#     copy-through with the new series_id so the display layer can treat
+#     all 20 uniformly.
+# Country labels mirror series_descriptions.py / dependency_config.py.
+# ---------------------------------------------------------------------------
+_IPP_COUNTRY_LABELS = {
+    "cn": "China",
+    "in": "India",
+    "id": "Indonesia",
+    "jp": "Japan",
+    "my": "Malaysia",
+    "ph": "Philippines",
+    "kr": "South Korea",
+    "tw": "Taiwan",
+    "th": "Thailand",
+    "vn": "Vietnam",
+}
+
+# Raw series id → (out series id, "imp_pi"|"ppi", iso2, raw_is_already_yoy).
+_REGIONAL_IMP_PI_PPI_MAP: list[tuple[str, str, str, str, bool]] = []
+for _iso2 in _IPP_COUNTRY_LABELS:
+    _REGIONAL_IMP_PI_PPI_MAP.append(
+        (f"regional_imp_pi_raw_{_iso2}", f"regional_imp_pi_yoy_{_iso2}",
+         "imp_pi", _iso2, _iso2 == "cn")
+    )
+    _REGIONAL_IMP_PI_PPI_MAP.append(
+        (f"regional_ppi_raw_{_iso2}", f"regional_ppi_yoy_{_iso2}",
+         "ppi", _iso2, _iso2 in ("id", "vn"))
+    )
+
+
+def compute_regional_imp_pi_ppi_yoy(conn: sqlite3.Connection) -> int:
+    """Derive % YoY series for the 20 regional Import / Producer Price Indexes.
+
+    For each raw `regional_{imp_pi,ppi}_raw_<iso2>` series:
+      - If the raw input is already YoY (% YoY unit), copy values through
+        under the new series_id with the same date stamps.
+      - Otherwise compute month-on-month-12 YoY:
+            yoy_t = (v_t / v_{t-12} - 1) * 100
+        requiring both points exist and v_{t-12} != 0.
+
+    Returns the total number of rows written. Idempotent (INSERT OR REPLACE
+    on the (date, series_id) primary key).
+    """
+    out_rows: list[tuple] = []
+    for raw_sid, out_sid, kind, iso2, already_yoy in _REGIONAL_IMP_PI_PPI_MAP:
+        rows = conn.execute(
+            "SELECT date, value FROM time_series "
+            "WHERE series_id = ? AND value IS NOT NULL "
+            "ORDER BY date",
+            (raw_sid,),
+        ).fetchall()
+        if not rows:
+            continue
+
+        country = _IPP_COUNTRY_LABELS[iso2]
+        kind_label = "Import Price Index" if kind == "imp_pi" else "Producer Price Index"
+        series_name = f"{country} {kind_label} YoY"
+
+        if already_yoy:
+            for date, value in rows:
+                out_rows.append((
+                    date, float(value), out_sid, series_name,
+                    "derived", "% YoY", "Monthly",
+                ))
+            continue
+
+        # 12-month YoY from a monthly level series. Index lookup by date so we
+        # don't rely on a strict 12-position lag (handles missing months
+        # gracefully by simply skipping months whose t-12 counterpart isn't
+        # present in the data).
+        from datetime import date as _date
+        by_date = {d: v for d, v in rows}
+        for d_str, v_t in rows:
+            try:
+                y, m, day = d_str.split("-")
+                y, m, day = int(y), int(m), int(day)
+            except (ValueError, AttributeError):
+                continue
+            prev_year = y - 1
+            prev_str = f"{prev_year:04d}-{m:02d}-{day:02d}"
+            v_prev = by_date.get(prev_str)
+            if v_prev is None or v_prev == 0:
+                continue
+            yoy = (v_t / v_prev - 1) * 100
+            out_rows.append((
+                d_str, yoy, out_sid, series_name,
+                "derived", "% YoY", "Monthly",
+            ))
+
+    if not out_rows:
+        return 0
+    conn.executemany(
+        "INSERT OR REPLACE INTO time_series "
+        "(date, value, series_id, series_name, source, unit, frequency, category) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, NULL)",
+        out_rows,
+    )
+    conn.commit()
+    return len(out_rows)
+
+
 def _compute_singstat_export_country_series(
     conn: sqlite3.Connection,
     *,

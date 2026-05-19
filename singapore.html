@@ -3888,7 +3888,7 @@
   </div>
 
   <footer>
-    <span>Middle East Monitor &middot; data refreshed 2026-05-19 03:41 UTC &middot; narratives generated 2026-05-19 03:52 UTC &middot; built by MAS-EPG-EconTech</span>
+    <span>Middle East Monitor &middot; data refreshed 2026-05-19 04:07 UTC &middot; narratives generated 2026-05-19 03:52 UTC &middot; built by MAS-EPG-EconTech</span>
     <span>Sources: CEIC, SingStat, Motorist, DataGov, Bloomberg/GSheets, Yahoo Finance, ADB AsianBondsOnline, Investing.com, IMF PortWatch</span>
   </footer>
 
@@ -3946,16 +3946,27 @@
       group.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b === btn));
       group.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'tab-' + slug));
       filterDataSourcesByTab(slug);
-      applyDateRangeBarVisibility(btn);
+      // Re-evaluate the date-range-bar against ALL currently-active tab buttons
+      // (not just the one we clicked) so nested tab_groups work correctly —
+      // an inner tab with hide_date_range can suppress the bar even if the
+      // outer tab doesn't, and vice-versa.
+      applyDateRangeBarVisibility();
     }
 
-    // ── Hide the page-wide "War period / 1Y / All time" selector when the
-    // active tab is marked data-hide-date-range (e.g. Trade tabs whose
-    // content is all bar charts on a category x-axis — zoom is irrelevant).
-    function applyDateRangeBarVisibility(activeBtn) {
+    // ── Hide the page-wide "War period / 1Y / All time" selector when ANY
+    // currently-active tab button is marked data-hide-date-range. Walks every
+    // active tab button on the page so nested tab_groups compose correctly —
+    // the bar hides if the deepest visible tab doesn't want it (e.g. Trade
+    // tabs with bar charts on a category x-axis, or the inflation 'At a
+    // glance' tab whose heatmaps have their own date selector).
+    function applyDateRangeBarVisibility() {
       const bar = document.querySelector('.date-range-bar');
       if (!bar) return;
-      const hide = activeBtn && activeBtn.dataset.hideDateRange === "true";
+      const activeBtns = document.querySelectorAll('.tab-btn.active');
+      let hide = false;
+      activeBtns.forEach(b => {
+        if (b.dataset.hideDateRange === "true") hide = true;
+      });
       bar.style.display = hide ? "none" : "";
     }
 
@@ -4276,7 +4287,7 @@
       const activeTabBtn = document.querySelector('.tab-btn.active');
       if (activeTabBtn && activeTabBtn.dataset.tab) {
         filterDataSourcesByTab(activeTabBtn.dataset.tab);
-        applyDateRangeBarVisibility(activeTabBtn);
+        applyDateRangeBarVisibility();
       } else {
         // No tabs on this page — show all rows and total count
         filterDataSourcesByTab(null);

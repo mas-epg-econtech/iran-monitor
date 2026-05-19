@@ -67,6 +67,13 @@ TAB_RELEVANCE = {
     "singapore.shipping":                ["energy_supply"],
     "singapore.financial_markets":       ["financial_markets"],
     "regional.prices":                   ["energy_supply"],
+    # Regional Prices is now a nested tab_group (At a glance / CPI / IPI+PPI).
+    # The renderer looks up by the deepest active tab slug, so we register
+    # each nested sub-tab explicitly so charts inside them carry the same
+    # 'energy_supply' relevance tag the parent Prices tab carries.
+    "regional.at_a_glance":              ["energy_supply"],
+    "regional.cpi_inflation":            ["energy_supply"],
+    "regional.ipi_ppi_inflation":        ["energy_supply"],
     "regional.sectoral_activity":        ["energy_supply"],
     "regional.trade":                    ["energy_supply"],
     "regional.shipping":                 ["energy_supply"],

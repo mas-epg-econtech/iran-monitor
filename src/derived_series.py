@@ -121,34 +121,51 @@ _IPP_COUNTRY_LABELS = {
     "vn": "Vietnam",
 }
 
-# Raw series id → (out series id, "imp_pi"|"ppi", iso2, raw_is_already_yoy).
-_REGIONAL_IMP_PI_PPI_MAP: list[tuple[str, str, str, str, bool]] = []
+# Raw series id → (out series id, "imp_pi"|"ppi", iso2, transform_mode).
+#
+# transform_mode is one of:
+#   "passthrough"  — raw value is already % YoY; copy through unchanged.
+#                    Used for Indonesia PPI (CEIC "WPI: General: YoY") and
+#                    Vietnam PPI (CEIC "PPI: YoY: Industrial: All Items").
+#   "yoy_index"    — raw value is a YoY INDEX where 100 = unchanged YoY
+#                    (current period / same period prior year × 100).
+#                    Convert to a % YoY rate by subtracting 100.
+#                    Used for China Import Price Index (CEIC "Trade Index:
+#                    YoY: Value: Import HS2") — values cluster around 100,
+#                    e.g. 123 ⇒ +23% YoY, 84 ⇒ -16% YoY.
+#   "compute_yoy"  — raw value is a level index; derive the 12-month %YoY.
+_REGIONAL_IMP_PI_PPI_MAP: list[tuple[str, str, str, str, str]] = []
 for _iso2 in _IPP_COUNTRY_LABELS:
+    # Import Price Index — China is yoy_index, the rest are level series.
+    _imp_mode = "yoy_index" if _iso2 == "cn" else "compute_yoy"
     _REGIONAL_IMP_PI_PPI_MAP.append(
         (f"regional_imp_pi_raw_{_iso2}", f"regional_imp_pi_yoy_{_iso2}",
-         "imp_pi", _iso2, _iso2 == "cn")
+         "imp_pi", _iso2, _imp_mode)
     )
+    # Producer Price Index — Indonesia + Vietnam already YoY %, the rest are levels.
+    _ppi_mode = "passthrough" if _iso2 in ("id", "vn") else "compute_yoy"
     _REGIONAL_IMP_PI_PPI_MAP.append(
         (f"regional_ppi_raw_{_iso2}", f"regional_ppi_yoy_{_iso2}",
-         "ppi", _iso2, _iso2 in ("id", "vn"))
+         "ppi", _iso2, _ppi_mode)
     )
 
 
 def compute_regional_imp_pi_ppi_yoy(conn: sqlite3.Connection) -> int:
     """Derive % YoY series for the 20 regional Import / Producer Price Indexes.
 
-    For each raw `regional_{imp_pi,ppi}_raw_<iso2>` series:
-      - If the raw input is already YoY (% YoY unit), copy values through
-        under the new series_id with the same date stamps.
-      - Otherwise compute month-on-month-12 YoY:
-            yoy_t = (v_t / v_{t-12} - 1) * 100
-        requiring both points exist and v_{t-12} != 0.
+    For each raw `regional_{imp_pi,ppi}_raw_<iso2>` series, apply one of three
+    transforms based on the raw input's published format (see
+    _REGIONAL_IMP_PI_PPI_MAP comments above):
+
+      * passthrough — already % YoY; copy as-is.
+      * yoy_index   — YoY index (100 = unchanged); subtract 100 to get %.
+      * compute_yoy — level index; compute 12-month YoY from same-month last year.
 
     Returns the total number of rows written. Idempotent (INSERT OR REPLACE
     on the (date, series_id) primary key).
     """
     out_rows: list[tuple] = []
-    for raw_sid, out_sid, kind, iso2, already_yoy in _REGIONAL_IMP_PI_PPI_MAP:
+    for raw_sid, out_sid, kind, iso2, mode in _REGIONAL_IMP_PI_PPI_MAP:
         rows = conn.execute(
             "SELECT date, value FROM time_series "
             "WHERE series_id = ? AND value IS NOT NULL "
@@ -162,7 +179,7 @@ def compute_regional_imp_pi_ppi_yoy(conn: sqlite3.Connection) -> int:
         kind_label = "Import Price Index" if kind == "imp_pi" else "Producer Price Index"
         series_name = f"{country} {kind_label} YoY"
 
-        if already_yoy:
+        if mode == "passthrough":
             for date, value in rows:
                 out_rows.append((
                     date, float(value), out_sid, series_name,
@@ -170,10 +187,19 @@ def compute_regional_imp_pi_ppi_yoy(conn: sqlite3.Connection) -> int:
                 ))
             continue
 
-        # 12-month YoY from a monthly level series. Index lookup by date so we
-        # don't rely on a strict 12-position lag (handles missing months
-        # gracefully by simply skipping months whose t-12 counterpart isn't
-        # present in the data).
+        if mode == "yoy_index":
+            # YoY index: subtract 100 to get the %YoY rate.
+            for date, value in rows:
+                out_rows.append((
+                    date, float(value) - 100.0, out_sid, series_name,
+                    "derived", "% YoY", "Monthly",
+                ))
+            continue
+
+        # mode == "compute_yoy": 12-month YoY from a monthly level series.
+        # Index lookup by date so we don't rely on a strict 12-position lag
+        # (handles missing months gracefully by simply skipping months whose
+        # t-12 counterpart isn't present in the data).
         from datetime import date as _date
         by_date = {d: v for d, v in rows}
         for d_str, v_t in rows:
